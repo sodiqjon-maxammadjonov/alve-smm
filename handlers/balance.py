@@ -171,6 +171,17 @@ async def admin_confirm(call: CallbackQuery, bot: Bot):
     except:
         pass
 
+    try:
+        await bot.send_message(
+            GROUP_ID,
+            f"✅ Deposit #{deposit_id} tasdiqlandi — {amount:,.0f} so‘m"
+        )
+    except:
+        await bot.send_message(
+            ADMIN_ID,
+            f"✅ Deposit #{deposit_id} tasdiqlandi — {amount:,.0f} so‘m"
+        )
+
     await call.answer("Tasdiqlandi!")
 
 @router.callback_query(F.data.startswith("adm_reject_"))
@@ -201,5 +212,16 @@ async def admin_reject(call: CallbackQuery, bot: Bot):
         )
     except:
         pass
+
+    try:
+        await bot.send_message(
+            GROUP_ID,
+            f"❌ Deposit #{deposit_id} rad etildi"
+        )
+    except:
+        await bot.send_message(
+            ADMIN_ID,
+            f"❌ Deposit #{deposit_id} rad etildi"
+        )
 
     await call.answer("Rad etildi!")
