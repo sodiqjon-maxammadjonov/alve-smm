@@ -58,23 +58,21 @@ async def process_amount(message: Message, state: FSMContext):
     if not text.isdigit():
         await message.answer("❌ Faqat raqam kiriting!")
         return
+
     amount = int(text)
     if amount < MIN_DEPOSIT or amount > MAX_DEPOSIT:
-        await message.answer(
-            f"❌ Summa {MIN_DEPOSIT:,} — {MAX_DEPOSIT:,} so'm oralig'ida bo'lishi kerak!"
-        )
+        await message.answer(f"❌ Summa {MIN_DEPOSIT:,} — {MAX_DEPOSIT:,} so'm oralig'ida bo'lishi kerak!")
         return
+
     await state.update_data(amount=amount)
     await message.answer(
         f"💳 <b>Quyidagi kartaga o'tkazing:</b>\n\n"
         f"🏦 Karta raqami: <code>{CARD_NUMBER}</code>\n"
         f"👤 Egasi: <b>{CARD_OWNER}</b>\n"
         f"💰 Summa: <b>{amount:,} so'm</b>\n\n"
-        f"⏱ To'lov <b>5 daqiqa</b> ichida ko'rib chiqiladi.\n"
-        f"✅ Ma'lumotlar to'g'ri bo'lsa, to'lovingiz tasdiqlanib balansingizga tushadi.\n\n"
-        f"⚠️ <b>Diqqat!</b> Chekdagi summa yuborgan summangiz bilan <b>bir xil</b> bo'lishi shart.\n"
-        f"Aks holda to'lov qabul qilinmaydi.\n\n"
-        f"✅ To'lovni amalga oshirgandan so'ng <b>chek (screenshot)</b>ni yuboring.",
+        f"⏱ To'lov 5 daqiqa ichida ko'rib chiqiladi.\n"
+        f"⚠️ Chekdagi summa to‘g‘ri bo‘lishi shart.\n\n"
+        f"🌁 To‘lovni amalga oshirgandan so‘ng chekni yuboring.",
         parse_mode="HTML"
     )
     await state.set_state(DepositState.waiting_check)
@@ -82,25 +80,24 @@ async def process_amount(message: Message, state: FSMContext):
 @router.message(DepositState.waiting_check, F.photo)
 async def process_check(message: Message, state: FSMContext, bot: Bot):
     data = await state.get_data()
-    amount = data.get("amount", 0)
+    amount = data.get("amount")
     file_id = message.photo[-1].file_id
 
     deposit_id = await create_deposit(message.from_user.id, amount, file_id)
     await state.clear()
 
     await message.answer(
-        f"✅ <b>Chek qabul qilindi!</b>\n\n"
-        f"💰 Summa: <b>{amount:,} so'm</b>\n"
-        f"⏱ <b>5 daqiqa</b> ichida ko'rib chiqiladi.\n\n"
-        f"Tasdiqlangandan so'ng balansingizga avtomatik tushadi.",
+        f"✅ Chek qabul qilindi!\n\n"
+        f"💰 <b>{amount:,} so'm</b>\n"
+        f"⏱ 5 daqiqa ichida ko‘rib chiqiladi.",
         reply_markup=back_to_main(),
         parse_mode="HTML"
     )
 
     user = message.from_user
     caption = (
-        f"📥 <b>Yangi to'ldirish so'rovi</b>\n\n"
-        f"👤 Foydalanuvchi: <a href='tg://user?id={user.id}'>{user.full_name}</a>\n"
+        f"📥 <b>Yangi to‘ldirish:</b>\n\n"
+        f"👤 <a href='tg://user?id={user.id}'>{user.full_name}</a>\n"
         f"🆔 ID: <code>{user.id}</code>\n"
         f"💰 Summa: <b>{amount:,} so'm</b>\n"
         f"🔖 Deposit ID: <code>{deposit_id}</code>"
@@ -114,25 +111,19 @@ async def process_check(message: Message, state: FSMContext, bot: Bot):
             reply_markup=admin_deposit_keyboard(deposit_id),
             parse_mode="HTML"
         )
-    except Exception as e:
-        logging.error(f"Guruhga habar yuborishda xato: {e}")
-        # Adminга to'g'ridan-to'g'ri yuboramiz
-        try:
-            await bot.send_photo(
-                chat_id=ADMIN_ID,
-                photo=file_id,
-                caption=caption,
-                reply_markup=admin_deposit_keyboard(deposit_id),
-                parse_mode="HTML"
-            )
-        except Exception as e2:
-            logging.error(f"Adminga habar yuborishda xato: {e2}")
+    except:
+        await bot.send_photo(
+            chat_id=ADMIN_ID,
+            photo=file_id,
+            caption=caption,
+            reply_markup=admin_deposit_keyboard(deposit_id),
+            parse_mode="HTML"
+        )
 
 @router.message(DepositState.waiting_check)
 async def process_check_wrong(message: Message):
     await message.answer(
-        "📸 Iltimos, to'lov chekini <b>rasm</b> sifatida yuboring!\n\n"
-        "Yoki balans to'ldirishni bekor qilishingiz mumkin 👇",
+        "📸 Iltimos, chekni rasm sifatida yuboring!",
         reply_markup=cancel_deposit_keyboard(),
         parse_mode="HTML"
     )
@@ -142,11 +133,11 @@ async def cb_during_check_wait(call: CallbackQuery, state: FSMContext):
     await state.clear()
     if call.data == "cancel_deposit":
         await call.message.answer(
-            "❌ <b>Balans to'ldirish bekor qilindi.</b>",
+            "❌ Balans to‘ldirish bekor qilindi.",
             reply_markup=back_to_main(),
             parse_mode="HTML"
         )
-        await call.answer("Bekor qilindi")
+        await call.answer()
         return
     await call.answer()
 
@@ -160,36 +151,24 @@ async def admin_confirm(call: CallbackQuery, bot: Bot):
 
     user_id, amount = result
 
-    # Guruh xabarini tahrirlash
     try:
+        await call.message.edit_reply_markup(None)
         new_caption = (call.message.caption or "") + "\n\n✅ <b>TASDIQLANDI</b>"
-        await call.message.edit_caption(
-            new_caption,
-            parse_mode="HTML",
-            reply_markup=None
-        )
-    except Exception as e:
-        logging.error(f"Guruh xabarini tahrirlashda xato: {e}")
-        # Tahrirlash olmasa yangi xabar yuboramiz
-        try:
-            await call.message.answer("✅ Deposit tasdiqlandi!")
-        except Exception:
-            pass
+        await call.message.edit_caption(new_caption, parse_mode="HTML")
+    except:
+        pass
 
-    # Foydalanuvchiga xabar
     try:
         await bot.send_message(
             user_id,
-            f"✅ <b>To'lov muvaffaqiyatli qabul qilindi!</b>\n\n"
-            f"💰 <b>+{amount:,.0f} so'm</b> balansingizga tushdi.\n\n"
-            f"Endi hizmatlardan bemalol foydalanishingiz mumkin. 🎉",
+            f"✅ To‘lov tasdiqlandi!\n\n+{amount:,.0f} so‘m balansingizga tushdi.",
             reply_markup=back_to_main(),
             parse_mode="HTML"
         )
-    except Exception as e:
-        logging.error(f"Foydalanuvchiga xabar yuborishda xato: {e}")
+    except:
+        pass
 
-    await call.answer("✅ Tasdiqlandi!")
+    await call.answer("Tasdiqlandi!")
 
 @router.callback_query(F.data.startswith("adm_reject_"))
 async def admin_reject(call: CallbackQuery, bot: Bot):
@@ -199,32 +178,21 @@ async def admin_reject(call: CallbackQuery, bot: Bot):
         await call.answer("❌ Deposit topilmadi!", show_alert=True)
         return
 
-    # Guruh xabarini tahrirlash
     try:
+        await call.message.edit_reply_markup(None)
         new_caption = (call.message.caption or "") + "\n\n❌ <b>RAD ETILDI</b>"
-        await call.message.edit_caption(
-            new_caption,
-            parse_mode="HTML",
-            reply_markup=None
-        )
-    except Exception as e:
-        logging.error(f"Guruh xabarini tahrirlashda xato: {e}")
-        try:
-            await call.message.answer("❌ Deposit rad etildi!")
-        except Exception:
-            pass
+        await call.message.edit_caption(new_caption, parse_mode="HTML")
+    except:
+        pass
 
-    # Foydalanuvchiga xabar
     try:
         await bot.send_message(
             user_id,
-            f"❌ <b>To'lovingiz qabul qilinmadi.</b>\n\n"
-            f"Sabab: chekdagi summa yoki ma'lumotlar noto'g'ri bo'lishi mumkin.\n\n"
-            f"Muammo bo'lsa admin bilan bog'laning 👇",
+            "❌ To‘lovingiz rad etildi.\n\nMuammo bo‘lsa admin bilan bog‘laning:",
             reply_markup=admin_contact_keyboard(),
             parse_mode="HTML"
         )
-    except Exception as e:
-        logging.error(f"Foydalanuvchiga xabar yuborishda xato: {e}")
+    except:
+        pass
 
-    await call.answer("❌ Rad etildi!")
+    await call.answer("Rad etildi!")
