@@ -7,7 +7,6 @@ from database import get_balance, create_deposit, confirm_deposit, reject_deposi
 from keyboards.menus import balance_menu, back_to_main, admin_deposit_keyboard
 from config import CARD_NUMBER, CARD_OWNER, MIN_DEPOSIT, MAX_DEPOSIT, ADMIN_ID, GROUP_ID
 import os
-import logging
 
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "smo_2811")
 
@@ -153,7 +152,11 @@ async def admin_confirm(call: CallbackQuery, bot: Bot):
 
     try:
         await call.message.edit_reply_markup(None)
-        new_caption = (call.message.caption or "") + "\n\n✅ <b>TASDIQLANDI</b>"
+        old_caption = call.message.caption or ""
+        new_caption = (
+            "📌 Status: <b>TASDIQLANDI</b>\n\n" +
+            old_caption.replace("📌 Status:", "")
+        )
         await call.message.edit_caption(new_caption, parse_mode="HTML")
     except:
         pass
@@ -180,7 +183,11 @@ async def admin_reject(call: CallbackQuery, bot: Bot):
 
     try:
         await call.message.edit_reply_markup(None)
-        new_caption = (call.message.caption or "") + "\n\n❌ <b>RAD ETILDI</b>"
+        old_caption = call.message.caption or ""
+        new_caption = (
+            "📌 Status: <b>RAD ETILDI</b>\n\n" +
+            old_caption.replace("📌 Status:", "")
+        )
         await call.message.edit_caption(new_caption, parse_mode="HTML")
     except:
         pass
