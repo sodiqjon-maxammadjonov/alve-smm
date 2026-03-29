@@ -1,2 +1,6 @@
 /.env
 /migrate.py
+.env
+bot.db
+__pycache__/
+*.pyc
