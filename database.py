@@ -112,15 +112,19 @@ async def get_pending_deposits():
 async def confirm_deposit(deposit_id: int):
     pool = await get_pool()
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT user_id, amount FROM deposits WHERE id=$1", deposit_id)
-        if not row:
-            return None
-        user_id, amount = row["user_id"], row["amount"]
-        await conn.execute(
-            "UPDATE deposits SET status='confirmed', confirmed_at=$1 WHERE id=$2",
-            int(time.time()), deposit_id
-        )
-        await conn.execute("UPDATE users SET balance=balance+$1 WHERE user_id=$2", amount, user_id)
+        async with conn.transaction():  # ← BU QO'SHILDI
+            row = await conn.fetchrow("SELECT user_id, amount FROM deposits WHERE id=$1", deposit_id)
+            if not row:
+                return None
+            user_id, amount = row["user_id"], row["amount"]
+            await conn.execute(
+                "UPDATE deposits SET status='confirmed', confirmed_at=$1 WHERE id=$2",
+                int(time.time()), deposit_id
+            )
+            await conn.execute(
+                "UPDATE users SET balance=balance+$1 WHERE user_id=$2", 
+                amount, user_id
+            )
     return user_id, amount
 
 async def reject_deposit(deposit_id: int):
