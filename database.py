@@ -151,7 +151,7 @@ async def confirm_deposit(deposit_id: int):
                 "UPDATE users SET balance = balance + $1 WHERE user_id = $2",
                 amount, user_id
             )
-    return user_id, amount
+            return user_id, amount  # ✅ transaction ICHIDA return qilish kerak, tashqarida emas
 
 
 async def reject_deposit(deposit_id: int):
