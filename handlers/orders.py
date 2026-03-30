@@ -8,13 +8,15 @@ import asyncio
 router = Router()
 
 STATUS_UZ = {
-    "Pending":     "⏳ Kutilmoqda",
-    "In progress": "🔄 Bajarilmoqda",
-    "Processing":  "🔄 Jarayonda",
-    "Completed":   "✅ Bajarildi",
-    "Partial":     "⚠️ Qisman bajarildi",
-    "Canceled":    "❌ Bekor qilindi",
-    "Refunded":    "💸 Qaytarildi",
+    "Pending":      "⏳ Kutilmoqda",
+    "In Progress":  "🔄 Bajarilmoqda",  
+    "In progress":  "🔄 Bajarilmoqda",  
+    "Processing":   "🔄 Jarayonda",
+    "Completed":    "✅ Bajarildi",
+    "Partial":      "⚠️ Qisman bajarildi",
+    "Canceled":     "❌ Bekor qilindi",
+    "Cancelled":    "❌ Bekor qilindi",   
+    "Refunded":     "💸 Qaytarildi",
 }
 
 @router.callback_query(F.data == "my_orders")
