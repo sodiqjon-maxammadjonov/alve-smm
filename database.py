@@ -148,10 +148,14 @@ async def confirm_deposit(deposit_id: int):
                 int(time.time()), deposit_id
             )
             await conn.execute(
+                "INSERT INTO users (user_id, balance, created_at) VALUES ($1, 0, $2) ON CONFLICT (user_id) DO NOTHING",
+                user_id, int(time.time())
+            )
+            await conn.execute(
                 "UPDATE users SET balance = balance + $1 WHERE user_id = $2",
                 amount, user_id
             )
-            return user_id, amount  # ✅ transaction ICHIDA return qilish kerak, tashqarida emas
+            return user_id, amount
 
 
 async def reject_deposit(deposit_id: int):

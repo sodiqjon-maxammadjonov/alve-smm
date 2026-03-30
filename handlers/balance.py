@@ -136,7 +136,7 @@ async def process_check_wrong(message: Message):
     )
 
 
-@router.callback_query(DepositState.waiting_check)
+@router.callback_query(DepositState.waiting_check, F.data == "cancel_deposit")
 async def cb_during_check_wait(call: CallbackQuery, state: FSMContext):
     await state.clear()
     await call.message.answer(
