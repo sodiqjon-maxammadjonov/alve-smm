@@ -11,7 +11,7 @@ from aiogram.fsm.state import State, StatesGroup
 router = Router()
 logger = logging.getLogger(__name__)
 
-ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "").split(","))) if os.getenv("ADMIN_IDS") else []
+ADMIN_IDS = [int(os.getenv("ADMIN_ID", 7917217047))]
 
 
 class BroadcastState(StatesGroup):
