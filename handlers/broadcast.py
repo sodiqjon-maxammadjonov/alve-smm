@@ -1,12 +1,12 @@
 import asyncio
 import logging
 import os
-import aiosqlite
 from aiogram import Router, F, Bot
 from aiogram.types import Message
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from database import get_pool
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -19,10 +19,10 @@ class BroadcastState(StatesGroup):
 
 
 async def get_all_user_ids() -> list[int]:
-    async with aiosqlite.connect("bot.db") as db:
-        async with db.execute("SELECT user_id FROM users") as cur:
-            rows = await cur.fetchall()
-    return [row[0] for row in rows]
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT user_id FROM users")
+    return [row["user_id"] for row in rows]
 
 
 @router.message(Command("broadcast"), F.from_user.id.in_(ADMIN_IDS))
@@ -48,9 +48,7 @@ async def process_broadcast(message: Message, state: FSMContext, bot: Bot):
     user_ids = await get_all_user_ids()
     total = len(user_ids)
 
-    status_msg = await message.answer(
-        f"⏳ Yuborilmoqda... 0/{total}",
-    )
+    status_msg = await message.answer(f"⏳ Yuborilmoqda... 0/{total}")
 
     sent = 0
     failed = 0
