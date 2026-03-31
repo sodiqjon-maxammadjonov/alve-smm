@@ -1,6 +1,6 @@
 from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
-from aiogram.filters import CommandStart
+from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -31,6 +31,129 @@ REPLY_TO_CALLBACK = {
 
 class RefCodeState(StatesGroup):
     waiting_code = State()
+
+
+async def show_balance(user_id: int, target: Message | CallbackQuery):
+    from keyboards.menus import balance_menu
+    bal = await get_balance(user_id)
+    text = (
+        f"💰 <b>Balansingiz:</b> {bal:,.0f} so'm\n\n"
+        "Balansni to'ldirish uchun quyidagi tugmani bosing."
+    )
+    if isinstance(target, CallbackQuery):
+        await target.message.edit_text(text, reply_markup=balance_menu(), parse_mode="HTML")
+        await target.answer()
+    else:
+        await target.answer(text, reply_markup=balance_menu(), parse_mode="HTML")
+
+
+async def show_services(target: Message | CallbackQuery):
+    text = "🛍 <b>Xizmatlar</b>\n\nPlatformani tanlang:"
+    if isinstance(target, CallbackQuery):
+        await target.message.edit_text(text, reply_markup=services_menu(), parse_mode="HTML")
+        await target.answer()
+    else:
+        await target.answer(text, reply_markup=services_menu(), parse_mode="HTML")
+
+
+async def show_orders(user_id: int, target: Message | CallbackQuery):
+    orders = await get_user_orders(user_id)
+    STATUS_EMOJI = {
+        "Pending": "⏳", "In progress": "🔄", "Processing": "🔄",
+        "Completed": "✅", "Partial": "⚠️", "Canceled": "❌", "Refunded": "💸"
+    }
+    if not orders:
+        text = "📦 <b>Buyurtmalarim</b>\n\nSizda hali buyurtma yo'q."
+        if isinstance(target, CallbackQuery):
+            await target.message.edit_text(text, reply_markup=back_to_main(), parse_mode="HTML")
+            await target.answer()
+        else:
+            await target.answer(text, reply_markup=back_to_main(), parse_mode="HTML")
+        return
+
+    lines = ["📦 <b>Buyurtmalarim</b> (oxirgi 20 ta):\n"]
+    for o in orders:
+        emoji = STATUS_EMOJI.get(o.get("status", ""), "❓")
+        lines.append(
+            f"{emoji} <b>#{o.get('smm_order_id')}</b> | {o.get('service_name','')[:28]}\n"
+            f"   🔢 {o.get('quantity',0):,} | 💰 {o.get('price_uzs',0):,.0f} so'm | {o.get('status')}\n"
+        )
+    text = "\n".join(lines)
+    if isinstance(target, CallbackQuery):
+        await target.message.edit_text(text, reply_markup=back_to_main(), parse_mode="HTML")
+        await target.answer()
+    else:
+        await target.answer(text, reply_markup=back_to_main(), parse_mode="HTML")
+
+
+async def show_support(target: Message | CallbackQuery):
+    admin_username = os.getenv("ADMIN_USERNAME", "your_admin_username")
+    b = InlineKeyboardBuilder()
+    b.row(InlineKeyboardButton(text="👨‍💼 Admin bilan bog'lanish", url=f"https://t.me/{admin_username}"))
+    b.row(InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="main_menu"))
+    text = (
+        "🆘 <b>Yordam</b>\n\n"
+        "Savol yoki muammolaringiz bo'lsa admin bilan bog'laning 👇\n\n"
+        "❓ <b>Buyurtma qancha vaqtda bajariladi?</b>\n"
+        "➡️ 1 daqiqadan bir necha soatgacha\n\n"
+        "❓ <b>Balans qanday to'ldiriladi?</b>\n"
+        "➡️ Kartaga o'tkazma, chek 5 daqiqada tasdiqlanadi\n\n"
+        "❓ <b>Buyurtma bajarilmasa pul qaytadimi?</b>\n"
+        "➡️ Ha, bajarilmagan qismi qaytariladi\n\n"
+        "❓ <b>Minimal to'ldirish summasi?</b>\n"
+        "➡️ 5,000 so'mdan boshlanadi"
+    )
+    if isinstance(target, CallbackQuery):
+        await target.message.edit_text(text, reply_markup=b.as_markup(), parse_mode="HTML")
+        await target.answer()
+    else:
+        await target.answer(text, reply_markup=b.as_markup(), parse_mode="HTML")
+
+
+async def show_referral(user_id: int, target: Message | CallbackQuery):
+    from database import get_referral_stats
+    from config import REFERRAL_PERCENT, REFERRAL_BONUS
+    stats = await get_referral_stats(user_id)
+    ref_link = f"https://t.me/{BOT_USERNAME}?start=REF_{user_id}"
+    b = InlineKeyboardBuilder()
+    b.row(InlineKeyboardButton(
+        text="🔗 Havolani ulashish",
+        switch_inline_query=(
+            f"🚀 Telegram va Instagram uchun eng arzon SMM xizmatlari!\n\n"
+            f"✅ Minglab mijozlar ishongan panel\n"
+            f"💰 Narxlar bozordan 5x arzon\n"
+            f"⚡ Buyurtma bir zumda bajariladi\n"
+            f"🎁 Ro'yxatdan o'tsangiz bonus kutmoqda!\n\n"
+            f"👇 Hoziroq sinab ko'ring:\n"
+            f"https://t.me/{BOT_USERNAME}?start=REF_{user_id}"
+        )
+    ))
+    b.row(InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="main_menu"))
+    text = _referral_text(stats, ref_link, user_id, REFERRAL_BONUS, REFERRAL_PERCENT)
+    if isinstance(target, CallbackQuery):
+        await target.message.edit_text(text, reply_markup=b.as_markup(), parse_mode="HTML")
+        await target.answer()
+    else:
+        await target.answer(text, reply_markup=b.as_markup(), parse_mode="HTML")
+
+
+def _referral_text(stats: dict, ref_link: str, user_id: int, bonus: int, percent: float) -> str:
+    return (
+        "🎁 <b>Referal dasturi</b>\n\n"
+        "Do'stlaringizni taklif qiling va ularning har bir buyurtmasidan daromad oling!\n\n"
+        "💸 <b>Qanday ishlaydi?</b>\n"
+        "├ Do'stingiz havolangiz orqali kiradi\n"
+        f"├ Birinchi buyurtma bersa → sizga <b>+{bonus:,} so'm bonus</b>\n"
+        f"└ Keyingi har buyurtmasidan → <b>{percent:.0f}% avtomatik balansga</b>\n\n"
+        "📊 <b>Sizning statistikangiz:</b>\n"
+        f"├ 👥 Taklif qilganlar: <b>{stats['invited']} kishi</b>\n"
+        f"├ 🎁 Bonus daromad: <b>{stats['bonus_earned']:,.0f} so'm</b>\n"
+        f"├ 💰 Foiz daromad: <b>{stats['percent_earned']:,.0f} so'm</b>\n"
+        f"└ 📈 Jami daromad: <b>{stats['total_earned']:,.0f} so'm</b>\n\n"
+        "🔗 <b>Sizning havolangiz:</b>\n"
+        f"<code>{ref_link}</code>\n\n"
+        "💡 Chegara yo'q — qancha ko'p odam, shuncha ko'p daromad! 🚀"
+    )
 
 
 @router.message(CommandStart())
@@ -70,15 +193,13 @@ async def cmd_start(message: Message, state: FSMContext):
             reply_markup=main_reply_keyboard(),
             parse_mode="HTML"
         )
-
     await message.answer("👇 Menyudan tanlang:", reply_markup=main_menu())
 
 
-@router.message(F.text == "/ref")
+@router.message(Command("ref"))
 async def cmd_ref_code(message: Message, state: FSMContext):
     await message.answer(
-        "📋 Referal kodingizni kiriting:\n\n"
-        "Masalan: <code>REF_123456789</code>",
+        "📋 Referal kodingizni kiriting:\n\nMasalan: <code>REF_123456789</code>",
         parse_mode="HTML"
     )
     await state.set_state(RefCodeState.waiting_code)
@@ -125,113 +246,44 @@ async def process_ref_code(message: Message, state: FSMContext):
         )
 
 
-def _referral_text(stats: dict, ref_link: str, user_id: int, bonus: int, percent: float) -> str:
-    return (
-        "🎁 <b>Referal dasturi</b>\n\n"
-        "Do'stlaringizni taklif qiling va ularning har bir buyurtmasidan daromad oling!\n\n"
-        "💸 <b>Qanday ishlaydi?</b>\n"
-        "├ Do'stingiz havolangiz orqali kiradi\n"
-        f"├ Birinchi buyurtma bersa → sizga <b>+{bonus:,} so'm bonus</b>\n"
-        f"└ Keyingi har buyurtmasidan → <b>{percent:.0f}% avtomatik balansga</b>\n\n"
-        "📊 <b>Sizning statistikangiz:</b>\n"
-        f"├ 👥 Taklif qilganlar: <b>{stats['invited']} kishi</b>\n"
-        f"├ 🎁 Bonus daromad: <b>{stats['bonus_earned']:,.0f} so'm</b>\n"
-        f"├ 💰 Foiz daromad: <b>{stats['percent_earned']:,.0f} so'm</b>\n"
-        f"└ 📈 Jami daromad: <b>{stats['total_earned']:,.0f} so'm</b>\n\n"
-        "🔗 <b>Sizning havolangiz:</b>\n"
-        f"<code>{ref_link}</code>\n\n"
-        "💡 Chegara yo'q — qancha ko'p odam, shuncha ko'p daromad! 🚀"
-    )
+@router.message(Command("referral"))
+async def cmd_referral(message: Message):
+    await show_referral(message.from_user.id, message)
+
+
+@router.message(Command("balans", "balance"))
+async def cmd_balans(message: Message):
+    await show_balance(message.from_user.id, message)
+
+
+@router.message(Command("buyurtmalar", "orders"))
+async def cmd_buyurtmalar(message: Message):
+    await show_orders(message.from_user.id, message)
+
+
+@router.message(Command("xizmatlar", "services"))
+async def cmd_xizmatlar(message: Message):
+    await show_services(message)
+
+
+@router.message(Command("yordam", "help"))
+async def cmd_yordam(message: Message):
+    await show_support(message)
 
 
 @router.message(F.text.in_(REPLY_TO_CALLBACK.keys()))
 async def handle_reply_button(message: Message):
-    callback_data = REPLY_TO_CALLBACK[message.text]
-
-    if callback_data == "balance":
-        from keyboards.menus import balance_menu
-        bal = await get_balance(message.from_user.id)
-        await message.answer(
-            f"💰 <b>Balansingiz:</b> {bal:,.0f} so'm\n\n"
-            "Balansni to'ldirish uchun quyidagi tugmani bosing.",
-            reply_markup=balance_menu(),
-            parse_mode="HTML"
-        )
-
-    elif callback_data == "services":
-        await message.answer(
-            "🛍 <b>Hizmatlar</b>\n\nPlatformani tanlang:",
-            reply_markup=services_menu(),
-            parse_mode="HTML"
-        )
-
-    elif callback_data == "my_orders":
-        orders = await get_user_orders(message.from_user.id)
-        if not orders:
-            await message.answer(
-                "📦 <b>Buyurtmalarim</b>\n\nSizda hali buyurtma yo'q.",
-                reply_markup=back_to_main(),
-                parse_mode="HTML"
-            )
-            return
-        STATUS_EMOJI = {
-            "Pending": "⏳", "In progress": "🔄", "Processing": "🔄",
-            "Completed": "✅", "Partial": "⚠️", "Canceled": "❌", "Refunded": "💸"
-        }
-        lines = ["📦 <b>Buyurtmalarim</b> (oxirgi 20 ta):\n"]
-        for o in orders:
-            emoji = STATUS_EMOJI.get(o.get("status", ""), "❓")
-            lines.append(
-                f"{emoji} <b>#{o.get('smm_order_id')}</b> | {o.get('service_name','')[:28]}\n"
-                f"   🔢 {o.get('quantity',0):,} | 💰 {o.get('price_uzs',0):,.0f} so'm | {o.get('status')}\n"
-            )
-        await message.answer("\n".join(lines), reply_markup=back_to_main(), parse_mode="HTML")
-
-    elif callback_data == "support":
-        admin_username = os.getenv("ADMIN_USERNAME", "your_admin_username")
-        b = InlineKeyboardBuilder()
-        b.row(InlineKeyboardButton(text="👨‍💼 Admin bilan bog'lanish", url=f"https://t.me/{admin_username}"))
-        b.row(InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="main_menu"))
-        await message.answer(
-            "🆘 <b>Yordam</b>\n\n"
-            "Savol yoki muammolaringiz bo'lsa admin bilan bog'laning 👇\n\n"
-            "❓ <b>Buyurtma qancha vaqtda bajariladi?</b>\n"
-            "➡️ 1 daqiqadan bir necha soatgacha\n\n"
-            "❓ <b>Balans qanday to'ldiriladi?</b>\n"
-            "➡️ Kartaga o'tkazma, chek 5 daqiqada tasdiqlanadi\n\n"
-            "❓ <b>Buyurtma bajarilmasa pul qaytadimi?</b>\n"
-            "➡️ Ha, bajarilmagan qismi qaytariladi\n\n"
-            "❓ <b>Minimal to'ldirish summasi?</b>\n"
-            "➡️ 5,000 so'mdan boshlanadi",
-            reply_markup=b.as_markup(),
-            parse_mode="HTML"
-        )
-
-    elif callback_data == "referral":
-        from database import get_referral_stats
-        from config import REFERRAL_PERCENT, REFERRAL_BONUS
-        user_id = message.from_user.id
-        stats = await get_referral_stats(user_id)
-        ref_link = f"https://t.me/{BOT_USERNAME}?start=REF_{user_id}"
-        b = InlineKeyboardBuilder()
-        b.row(InlineKeyboardButton(
-            text="🔗 Havolani ulashish",
-            switch_inline_query=(
-                f"🚀 Telegram va Instagram uchun eng arzon SMM xizmatlari!\n\n"
-                f"✅ Minglab mijozlar ishongan panel\n"
-                f"💰 Narxlar bozordan 5x arzon\n"
-                f"⚡ Buyurtma bir zumda bajariladi\n"
-                f"🎁 Ro'yxatdan o'tsangiz bonus kutmoqda!\n\n"
-                f"👇 Hoziroq sinab ko'ring:\n"
-                f"https://t.me/{BOT_USERNAME}?start=REF_{user_id}"
-            )
-        ))
-        b.row(InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="main_menu"))
-        await message.answer(
-            _referral_text(stats, ref_link, user_id, REFERRAL_BONUS, REFERRAL_PERCENT),
-            reply_markup=b.as_markup(),
-            parse_mode="HTML"
-        )
+    cb = REPLY_TO_CALLBACK[message.text]
+    if cb == "balance":
+        await show_balance(message.from_user.id, message)
+    elif cb == "services":
+        await show_services(message)
+    elif cb == "my_orders":
+        await show_orders(message.from_user.id, message)
+    elif cb == "support":
+        await show_support(message)
+    elif cb == "referral":
+        await show_referral(message.from_user.id, message)
 
 
 @router.callback_query(F.data == "main_menu")
@@ -242,3 +294,23 @@ async def cb_main_menu(call: CallbackQuery):
         parse_mode="HTML"
     )
     await call.answer()
+
+
+@router.callback_query(F.data == "balance")
+async def cb_balance(call: CallbackQuery):
+    await show_balance(call.from_user.id, call)
+
+
+@router.callback_query(F.data == "my_orders")
+async def cb_orders(call: CallbackQuery):
+    await show_orders(call.from_user.id, call)
+
+
+@router.callback_query(F.data == "support")
+async def cb_support(call: CallbackQuery):
+    await show_support(call)
+
+
+@router.callback_query(F.data == "referral")
+async def cb_referral(call: CallbackQuery):
+    await show_referral(call.from_user.id, call)

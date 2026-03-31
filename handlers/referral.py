@@ -7,7 +7,7 @@ import os
 
 router = Router()
 
-BOT_USERNAME = os.getenv("BOT_USERNAME", "your_bot_username")
+BOT_USERNAME = os.getenv("BOT_USERNAME", "zendor_smm_bot")
 
 def referral_keyboard(user_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
