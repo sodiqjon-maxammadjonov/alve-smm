@@ -4,7 +4,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from config import BOT_TOKEN
 from database import init_db
-from handlers import start, balance, services, orders, support, group, referral
+from handlers import start, balance, services, orders, support, group, referral, broadcast
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,6 +24,7 @@ async def main():
     dp.include_router(support.router)
     dp.include_router(group.router)
     dp.include_router(referral.router)
+    dp.include_router(broadcast.router)
 
     logging.info("Bot ishga tushdi...")
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
