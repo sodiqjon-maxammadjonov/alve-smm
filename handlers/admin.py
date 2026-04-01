@@ -167,11 +167,15 @@ async def cmd_balance_check(message: Message):
         await message.answer("❌ Foydalanuvchi topilmadi")
         return
 
+    full_name = row["full_name"]
+    user_id = row["user_id"]
+    username = row["username"] or "yoq"
+    balance = row["balance"]
     await message.answer(
-        f"👤 <b>{row['full_name']}</b>\n"
-        f"🆔 ID: <code>{row['user_id']}</code>\n"
-        f"👤 Username: @{row['username'] or 'yo\'q'}\n"
-        f"💰 Balans: <b>{row['balance']:,} so'm</b>",
+        f"👤 <b>{full_name}</b>\n"
+        f"🆔 ID: <code>{user_id}</code>\n"
+        f"👤 Username: @{username}\n"
+        f"💰 Balans: <b>{balance:,} so'm</b>",
         parse_mode="HTML"
     )
 
