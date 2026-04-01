@@ -6,6 +6,7 @@ from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeCha
 from config import BOT_TOKEN, ADMIN_ID
 from database import init_db
 from handlers import start, balance, services, orders, support, group, referral, broadcast, admin
+from handlers.orders import auto_update_orders
 
 logging.basicConfig(
     level=logging.INFO,
@@ -15,25 +16,25 @@ logging.basicConfig(
 
 async def set_bot_commands(bot: Bot):
     user_commands = [
-        BotCommand(command="start",       description="🚀 Botni ishga tushirish"),
-        BotCommand(command="commandlist", description="📋 Komandalar ro'yxati"),
-        BotCommand(command="balans",      description="💰 Balansni ko'rish"),
-        BotCommand(command="xizmatlar",   description="📦 Xizmatlar ro'yxati"),
-        BotCommand(command="buyurtmalar", description="🗂 Buyurtmalarim"),
-        BotCommand(command="referral",    description="🎁 Referal dasturi"),
-        BotCommand(command="yordam",      description="🆘 Yordam"),
+        BotCommand(command="start",       description="Botni ishga tushirish"),
+        BotCommand(command="commandlist", description="Komandalar royxati"),
+        BotCommand(command="balans",      description="Balansni korish"),
+        BotCommand(command="xizmatlar",   description="Xizmatlar royxati"),
+        BotCommand(command="buyurtmalar", description="Buyurtmalarim"),
+        BotCommand(command="referral",    description="Referal dasturi"),
+        BotCommand(command="yordam",      description="Yordam"),
     ]
     await bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
 
     admin_commands = user_commands + [
-        BotCommand(command="admin",         description="🛠 Admin panel"),
-        BotCommand(command="stats",         description="📊 Statistika"),
-        BotCommand(command="users",         description="👥 Foydalanuvchilar"),
-        BotCommand(command="pending",       description="⏳ Kutayotgan depozitlar"),
-        BotCommand(command="top",           description="🏆 Top 10 mijozlar"),
-        BotCommand(command="broadcast",     description="📢 Hammaga xabar"),
-        BotCommand(command="balance_check", description="💳 Balans tekshirish"),
-        BotCommand(command="add_balance",   description="➕ Balans qo'shish"),
+        BotCommand(command="admin",         description="Admin panel"),
+        BotCommand(command="stats",         description="Statistika"),
+        BotCommand(command="users",         description="Foydalanuvchilar"),
+        BotCommand(command="pending",       description="Kutayotgan depozitlar"),
+        BotCommand(command="top",           description="Top 10 mijozlar"),
+        BotCommand(command="broadcast",     description="Hammaga xabar"),
+        BotCommand(command="balance_check", description="Balans tekshirish"),
+        BotCommand(command="add_balance",   description="Balans qoshish"),
     ]
     try:
         await bot.set_my_commands(
@@ -46,8 +47,10 @@ async def set_bot_commands(bot: Bot):
 
 async def main():
     await init_db()
+
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher(storage=MemoryStorage())
+
     await set_bot_commands(bot)
 
     dp.include_router(admin.router)
@@ -60,7 +63,10 @@ async def main():
     dp.include_router(referral.router)
     dp.include_router(broadcast.router)
 
-    logging.info("✅ Bot ishga tushdi!")
+    # Har 5 daqiqada order statuslarini yangilaydi
+    asyncio.create_task(auto_update_orders(bot))
+
+    logging.info("Bot ishga tushdi! Auto-updater yoqildi.")
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 
 
