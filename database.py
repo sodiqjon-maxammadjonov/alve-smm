@@ -118,6 +118,14 @@ async def create_deposit(user_id: int, amount: int, check_file_id: str) -> int:
         return row["id"]
 
 
+async def get_deposit_status(deposit_id: int) -> str | None:
+    """Deposit statusini qaytaradi: 'pending', 'confirmed', 'rejected' yoki None"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT status FROM deposits WHERE id=$1", deposit_id)
+        return row["status"] if row else None
+
+
 async def get_pending_deposits():
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -165,7 +173,7 @@ async def reject_deposit(deposit_id: int):
             row = await conn.fetchrow(
                 "SELECT user_id, status FROM deposits WHERE id=$1 FOR UPDATE", deposit_id
             )
-            if not row or row["status"] != "pending":
+            if not row or row["status"] == "rejected":
                 return None
             await conn.execute(
                 "UPDATE deposits SET status='rejected' WHERE id=$1", deposit_id
@@ -272,3 +280,109 @@ async def get_referral_stats(user_id: int) -> dict:
         "bonus_earned": bonus_earned,
         "percent_earned": percent_earned,
     }
+
+
+# ── Admin statistika funksiyalari ─────────────────────────────
+
+async def get_users_stats() -> dict:
+    """Foydalanuvchilar statistikasi"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        total = int((await conn.fetchrow("SELECT COUNT(*) as cnt FROM users"))["cnt"])
+        today_ts = int(time.time()) - 86400
+        new_today = int((await conn.fetchrow(
+            "SELECT COUNT(*) as cnt FROM users WHERE created_at >= $1", today_ts
+        ))["cnt"])
+        week_ts = int(time.time()) - 604800
+        new_week = int((await conn.fetchrow(
+            "SELECT COUNT(*) as cnt FROM users WHERE created_at >= $1", week_ts
+        ))["cnt"])
+        total_balance = int((await conn.fetchrow(
+            "SELECT COALESCE(SUM(balance),0) as s FROM users"
+        ))["s"])
+        with_orders = int((await conn.fetchrow(
+            "SELECT COUNT(DISTINCT user_id) as cnt FROM orders"
+        ))["cnt"])
+    return {
+        "total": total,
+        "new_today": new_today,
+        "new_week": new_week,
+        "total_balance": total_balance,
+        "with_orders": with_orders,
+        "no_orders": total - with_orders,
+    }
+
+
+async def get_orders_stats() -> dict:
+    """Buyurtmalar statistikasi"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        total = int((await conn.fetchrow("SELECT COUNT(*) as cnt FROM orders"))["cnt"])
+        total_revenue = int((await conn.fetchrow(
+            "SELECT COALESCE(SUM(price_uzs),0) as s FROM orders"
+        ))["s"])
+        today_ts = int(time.time()) - 86400
+        today_orders = int((await conn.fetchrow(
+            "SELECT COUNT(*) as cnt FROM orders WHERE created_at >= $1", today_ts
+        ))["cnt"])
+        today_revenue = int((await conn.fetchrow(
+            "SELECT COALESCE(SUM(price_uzs),0) as s FROM orders WHERE created_at >= $1", today_ts
+        ))["s"])
+        completed = int((await conn.fetchrow(
+            "SELECT COUNT(*) as cnt FROM orders WHERE status='Completed'"
+        ))["cnt"])
+        pending = int((await conn.fetchrow(
+            "SELECT COUNT(*) as cnt FROM orders WHERE status IN ('Pending','In progress','Processing')"
+        ))["cnt"])
+    return {
+        "total": total,
+        "total_revenue": total_revenue,
+        "today_orders": today_orders,
+        "today_revenue": today_revenue,
+        "completed": completed,
+        "pending": pending,
+    }
+
+
+async def get_deposits_stats() -> dict:
+    """Depozitlar statistikasi"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        pending_count = int((await conn.fetchrow(
+            "SELECT COUNT(*) as cnt FROM deposits WHERE status='pending'"
+        ))["cnt"])
+        pending_sum = int((await conn.fetchrow(
+            "SELECT COALESCE(SUM(amount),0) as s FROM deposits WHERE status='pending'"
+        ))["s"])
+        confirmed_sum = int((await conn.fetchrow(
+            "SELECT COALESCE(SUM(amount),0) as s FROM deposits WHERE status='confirmed'"
+        ))["s"])
+        today_ts = int(time.time()) - 86400
+        today_confirmed = int((await conn.fetchrow(
+            "SELECT COALESCE(SUM(amount),0) as s FROM deposits WHERE status='confirmed' AND confirmed_at >= $1",
+            today_ts
+        ))["s"])
+    return {
+        "pending_count": pending_count,
+        "pending_sum": pending_sum,
+        "confirmed_sum": confirmed_sum,
+        "today_confirmed": today_confirmed,
+    }
+
+
+async def get_top_users(limit: int = 10) -> list:
+    """Eng ko'p xarid qilgan foydalanuvchilar"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT u.user_id, u.full_name, u.username, u.balance,
+                      COUNT(o.id) as order_count,
+                      COALESCE(SUM(o.price_uzs),0) as total_spent
+               FROM users u
+               LEFT JOIN orders o ON u.user_id = o.user_id
+               GROUP BY u.user_id, u.full_name, u.username, u.balance
+               ORDER BY total_spent DESC
+               LIMIT $1""",
+            limit
+        )
+        return [dict(r) for r in rows]

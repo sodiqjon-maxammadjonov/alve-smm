@@ -2,21 +2,55 @@ import asyncio
 import logging
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
-from config import BOT_TOKEN
+from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeChat
+from config import BOT_TOKEN, ADMIN_ID
 from database import init_db
-from handlers import start, balance, services, orders, support, group, referral, broadcast
+from handlers import start, balance, services, orders, support, group, referral, broadcast, admin
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
 
+
+async def set_bot_commands(bot: Bot):
+    user_commands = [
+        BotCommand(command="start",       description="🚀 Botni ishga tushirish"),
+        BotCommand(command="commandlist", description="📋 Komandalar ro'yxati"),
+        BotCommand(command="balans",      description="💰 Balansni ko'rish"),
+        BotCommand(command="xizmatlar",   description="📦 Xizmatlar ro'yxati"),
+        BotCommand(command="buyurtmalar", description="🗂 Buyurtmalarim"),
+        BotCommand(command="referral",    description="🎁 Referal dasturi"),
+        BotCommand(command="yordam",      description="🆘 Yordam"),
+    ]
+    await bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
+
+    admin_commands = user_commands + [
+        BotCommand(command="admin",         description="🛠 Admin panel"),
+        BotCommand(command="stats",         description="📊 Statistika"),
+        BotCommand(command="users",         description="👥 Foydalanuvchilar"),
+        BotCommand(command="pending",       description="⏳ Kutayotgan depozitlar"),
+        BotCommand(command="top",           description="🏆 Top 10 mijozlar"),
+        BotCommand(command="broadcast",     description="📢 Hammaga xabar"),
+        BotCommand(command="balance_check", description="💳 Balans tekshirish"),
+        BotCommand(command="add_balance",   description="➕ Balans qo'shish"),
+    ]
+    try:
+        await bot.set_my_commands(
+            admin_commands,
+            scope=BotCommandScopeChat(chat_id=ADMIN_ID)
+        )
+    except Exception as e:
+        logging.warning(f"Admin commands set failed: {e}")
+
+
 async def main():
     await init_db()
-
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher(storage=MemoryStorage())
+    await set_bot_commands(bot)
 
+    dp.include_router(admin.router)
     dp.include_router(start.router)
     dp.include_router(balance.router)
     dp.include_router(services.router)
@@ -26,8 +60,9 @@ async def main():
     dp.include_router(referral.router)
     dp.include_router(broadcast.router)
 
-    logging.info("Bot ishga tushdi...")
+    logging.info("✅ Bot ishga tushdi!")
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+
 
 if __name__ == "__main__":
     asyncio.run(main())
