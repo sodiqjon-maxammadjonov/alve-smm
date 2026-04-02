@@ -158,13 +158,13 @@ PLATFORMS = {
         "👤 Obunachilar": [
             {
                 "service": 22042,
-                "name": "Obunachi — Postlari bor",
+                "name": "Obunachi — Postlari bor Real akkauntlar",
                 "description": "Real ko'rinishdagi akkauntlar.\n✅ Ishonchli va barqaror.",
                 "rate": 0.2645, "min": 100, "max": 100_000,
             },
             {
                 "service": 16350,
-                "name": "Obunachi — Tez va arzon",
+                "name": "Obunachi — Tez Yetetkzish",
                 "description": "⚡ Tez yetkaziladi, qulay narx.",
                 "rate": 0.3431, "min": 100, "max": 500_000,
             },
