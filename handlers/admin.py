@@ -6,7 +6,8 @@ from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database import (
     get_users_stats, get_orders_stats, get_deposits_stats,
-    get_top_users, get_pending_deposits, get_pool
+    get_top_users, get_pending_deposits, get_pool,
+    get_all_orders_paginated
 )
 
 router = Router()
@@ -17,6 +18,18 @@ try:
 except Exception:
     ADMIN_IDS = [int(ADMIN_IDS_RAW)]
 
+STATUS_UZ = {
+    "Pending":     "⏳ Kutilmoqda",
+    "In Progress": "🔄 Bajarilmoqda",
+    "In progress": "🔄 Bajarilmoqda",
+    "Processing":  "🔄 Jarayonda",
+    "Completed":   "✅ Bajarildi",
+    "Partial":     "⚠️ Qisman",
+    "Canceled":    "❌ Bekor",
+    "Cancelled":   "❌ Bekor",
+    "Refunded":    "💸 Qaytarildi",
+}
+
 
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
@@ -26,19 +39,38 @@ def admin_panel_keyboard():
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(text="👥 Foydalanuvchilar", callback_data="adm_users"),
-        InlineKeyboardButton(text="📦 Buyurtmalar", callback_data="adm_orders")
+        InlineKeyboardButton(text="📦 Buyurtmalar", callback_data="adm_orders_0_all")
     )
     builder.row(
         InlineKeyboardButton(text="💰 Depozitlar", callback_data="adm_deposits"),
         InlineKeyboardButton(text="🏆 Top 10", callback_data="adm_top")
     )
-    builder.row(
-        InlineKeyboardButton(text="⏳ Kutayotgan cheklar", callback_data="adm_pending"),
-    )
+    builder.row(InlineKeyboardButton(text="⏳ Kutayotgan cheklar", callback_data="adm_pending"))
     return builder.as_markup()
 
 
-# ── /admin komandasi ───────────────────────────────────────────
+def orders_filter_keyboard(current: str, page: int):
+    builder = InlineKeyboardBuilder()
+    filters = [
+        ("Hammasi", "all"),
+        ("⏳ Kutish", "Pending"),
+        ("🔄 Jarayon", "In progress"),
+        ("✅ Bajarildi", "Completed"),
+        ("❌ Bekor", "Canceled"),
+    ]
+    row = []
+    for label, key in filters:
+        prefix = "▶ " if key == current else ""
+        row.append(InlineKeyboardButton(
+            text=f"{prefix}{label}",
+            callback_data=f"adm_orders_0_{key}"
+        ))
+    builder.row(*row[:3])
+    builder.row(*row[3:])
+    return builder
+
+
+# ── /admin ────────────────────────────────────────────────────
 
 @router.message(Command("admin"))
 async def cmd_admin(message: Message):
@@ -51,7 +83,7 @@ async def cmd_admin(message: Message):
     )
 
 
-# ── /stats — umumiy statistika ────────────────────────────────
+# ── /stats ────────────────────────────────────────────────────
 
 @router.message(Command("stats"))
 async def cmd_stats(message: Message):
@@ -60,20 +92,20 @@ async def cmd_stats(message: Message):
     u = await get_users_stats()
     o = await get_orders_stats()
     d = await get_deposits_stats()
-
     text = (
         "📊 <b>Bot statistikasi</b>\n\n"
         "👥 <b>Foydalanuvchilar:</b>\n"
         f"├ Jami: <b>{u['total']:,}</b>\n"
         f"├ Bugun yangi: <b>+{u['new_today']}</b>\n"
-        f"├ Hafta davomida: <b>+{u['new_week']}</b>\n"
-        f"├ Buyurtma berganlari: <b>{u['with_orders']}</b>\n"
-        f"└ Hech narsa olmagan: <b>{u['no_orders']}</b>\n\n"
+        f"├ Bu hafta: <b>+{u['new_week']}</b>\n"
+        f"├ Buyurtma berganlar: <b>{u['with_orders']}</b>\n"
+        f"└ Xarid qilmaganlar: <b>{u['no_orders']}</b>\n\n"
         "📦 <b>Buyurtmalar:</b>\n"
         f"├ Jami: <b>{o['total']:,}</b>\n"
         f"├ Bugun: <b>{o['today_orders']}</b> (+{o['today_revenue']:,} so'm)\n"
         f"├ Bajarilgan: <b>{o['completed']}</b>\n"
         f"├ Jarayonda: <b>{o['pending']}</b>\n"
+        f"├ Bekor qilingan: <b>{o['canceled']}</b>\n"
         f"└ Jami tushum: <b>{o['total_revenue']:,} so'm</b>\n\n"
         "💰 <b>Depozitlar:</b>\n"
         f"├ Kutayotgan: <b>{d['pending_count']}</b> ({d['pending_sum']:,} so'm)\n"
@@ -84,26 +116,26 @@ async def cmd_stats(message: Message):
     await message.answer(text, parse_mode="HTML", reply_markup=admin_panel_keyboard())
 
 
-# ── /users — foydalanuvchilar statistikasi ────────────────────
+# ── /users ────────────────────────────────────────────────────
 
 @router.message(Command("users"))
 async def cmd_users(message: Message):
     if not is_admin(message.from_user.id):
         return
     u = await get_users_stats()
-    text = (
-        "👥 <b>Foydalanuvchilar statistikasi</b>\n\n"
-        f"📊 Jami ro'yxatdan o'tgan: <b>{u['total']:,}</b>\n"
-        f"🆕 Bugun qo'shilgan: <b>+{u['new_today']}</b>\n"
-        f"📅 Bu hafta: <b>+{u['new_week']}</b>\n\n"
+    await message.answer(
+        "👥 <b>Foydalanuvchilar</b>\n\n"
+        f"📊 Jami: <b>{u['total']:,}</b>\n"
+        f"🆕 Bugun: <b>+{u['new_today']}</b>\n"
+        f"📅 Bu hafta: <b>+{u['new_week']}</b>\n"
         f"✅ Buyurtma berganlar: <b>{u['with_orders']}</b>\n"
-        f"😴 Hech narsa olmaganlar: <b>{u['no_orders']}</b>\n\n"
-        f"💰 Umumiy balanslar: <b>{u['total_balance']:,} so'm</b>"
+        f"😴 Xarid qilmaganlar: <b>{u['no_orders']}</b>\n"
+        f"💰 Umumiy balans: <b>{u['total_balance']:,} so'm</b>",
+        parse_mode="HTML"
     )
-    await message.answer(text, parse_mode="HTML")
 
 
-# ── /pending — kutayotgan depozitlar ─────────────────────────
+# ── /pending ──────────────────────────────────────────────────
 
 @router.message(Command("pending"))
 async def cmd_pending(message: Message):
@@ -111,13 +143,13 @@ async def cmd_pending(message: Message):
         return
     deposits = await get_pending_deposits()
     if not deposits:
-        await message.answer("✅ Hozirda kutayotgan depozitlar yo'q!")
+        await message.answer("✅ Kutayotgan depozitlar yo'q!")
         return
-    lines = [f"⏳ <b>Kutayotgan depozitlar ({len(deposits)} ta):</b>\n"]
+    lines = [f"⏳ <b>Kutayotgan: {len(deposits)} ta</b>\n"]
     for d in deposits[:10]:
         ts = time.strftime("%d.%m %H:%M", time.localtime(d.get("created_at", 0)))
         lines.append(
-            f"🔖 <b>#{d['id']}</b> | {d.get('full_name','?')} | "
+            f"🔖 <b>#{d['id']}</b> | {d.get('full_name', '?')} | "
             f"<b>{d['amount']:,} so'm</b> | {ts}"
         )
     if len(deposits) > 10:
@@ -125,7 +157,7 @@ async def cmd_pending(message: Message):
     await message.answer("\n".join(lines), parse_mode="HTML")
 
 
-# ── /top — top foydalanuvchilar ───────────────────────────────
+# ── /top ──────────────────────────────────────────────────────
 
 @router.message(Command("top"))
 async def cmd_top(message: Message):
@@ -142,7 +174,7 @@ async def cmd_top(message: Message):
     await message.answer("\n".join(lines), parse_mode="HTML")
 
 
-# ── /balance_check <user_id> — foydalanuvchi balansi ─────────
+# ── /balance_check ────────────────────────────────────────────
 
 @router.message(Command("balance_check"))
 async def cmd_balance_check(message: Message):
@@ -166,21 +198,16 @@ async def cmd_balance_check(message: Message):
     if not row:
         await message.answer("❌ Foydalanuvchi topilmadi")
         return
-
-    full_name = row["full_name"]
-    user_id = row["user_id"]
-    username = row["username"] or "yoq"
-    balance = row["balance"]
     await message.answer(
-        f"👤 <b>{full_name}</b>\n"
-        f"🆔 ID: <code>{user_id}</code>\n"
-        f"👤 Username: @{username}\n"
-        f"💰 Balans: <b>{balance:,} so'm</b>",
+        f"👤 <b>{row['full_name']}</b>\n"
+        f"🆔 ID: <code>{row['user_id']}</code>\n"
+        f"👤 Username: @{row['username'] or 'yoq'}\n"
+        f"💰 Balans: <b>{row['balance']:,} so'm</b>",
         parse_mode="HTML"
     )
 
 
-# ── /add_balance <user_id> <summa> — balans qo'shish ─────────
+# ── /add_balance ──────────────────────────────────────────────
 
 @router.message(Command("add_balance"))
 async def cmd_add_balance(message: Message, bot: Bot):
@@ -214,7 +241,7 @@ async def cmd_add_balance(message: Message, bot: Bot):
         await bot.send_message(
             uid,
             f"💰 <b>Balansingizga qo'shildi!</b>\n\n"
-            f"Admin tomonidan <b>+{amount:,} so'm</b> balansingizga tushdi.",
+            f"Admin tomonidan <b>+{amount:,} so'm</b> tushdi.",
             parse_mode="HTML"
         )
     except Exception:
@@ -226,7 +253,20 @@ async def cmd_add_balance(message: Message, bot: Bot):
     )
 
 
-# ── Callback handlerlari ──────────────────────────────────────
+# ── Callback: admin panel ─────────────────────────────────────
+
+@router.callback_query(F.data == "adm_panel")
+async def cb_adm_panel(call: CallbackQuery):
+    if not is_admin(call.from_user.id):
+        await call.answer("❌ Ruxsat yo'q!", show_alert=True)
+        return
+    await call.message.edit_text(
+        "🛠 <b>Admin panel</b>\n\nNimani ko'rmoqchisiz?",
+        reply_markup=admin_panel_keyboard(),
+        parse_mode="HTML"
+    )
+    await call.answer()
+
 
 @router.callback_query(F.data == "adm_users")
 async def cb_adm_users(call: CallbackQuery):
@@ -234,38 +274,73 @@ async def cb_adm_users(call: CallbackQuery):
         await call.answer("❌ Ruxsat yo'q!", show_alert=True)
         return
     u = await get_users_stats()
-    text = (
-        "👥 <b>Foydalanuvchilar statistikasi</b>\n\n"
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="🔙 Orqaga", callback_data="adm_panel"))
+    await call.message.edit_text(
+        "👥 <b>Foydalanuvchilar</b>\n\n"
         f"📊 Jami: <b>{u['total']:,}</b>\n"
         f"🆕 Bugun: <b>+{u['new_today']}</b>\n"
         f"📅 Bu hafta: <b>+{u['new_week']}</b>\n"
-        f"✅ Buyurtma bergan: <b>{u['with_orders']}</b>\n"
-        f"😴 Xarid qilmagan: <b>{u['no_orders']}</b>\n"
-        f"💰 Umumiy balans: <b>{u['total_balance']:,} so'm</b>"
+        f"✅ Buyurtma berganlar: <b>{u['with_orders']}</b>\n"
+        f"😴 Xarid qilmaganlar: <b>{u['no_orders']}</b>\n"
+        f"💰 Umumiy balans: <b>{u['total_balance']:,} so'm</b>",
+        parse_mode="HTML", reply_markup=builder.as_markup()
     )
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="🔙 Orqaga", callback_data="adm_panel"))
-    await call.message.edit_text(text, parse_mode="HTML", reply_markup=builder.as_markup())
     await call.answer()
 
 
-@router.callback_query(F.data == "adm_orders")
+@router.callback_query(F.data.startswith("adm_orders_"))
 async def cb_adm_orders(call: CallbackQuery):
     if not is_admin(call.from_user.id):
         await call.answer("❌ Ruxsat yo'q!", show_alert=True)
         return
-    o = await get_orders_stats()
-    text = (
-        "📦 <b>Buyurtmalar statistikasi</b>\n\n"
-        f"📊 Jami: <b>{o['total']:,}</b>\n"
-        f"📅 Bugun: <b>{o['today_orders']}</b> (+{o['today_revenue']:,} so'm)\n"
-        f"✅ Bajarilgan: <b>{o['completed']}</b>\n"
-        f"⏳ Jarayonda: <b>{o['pending']}</b>\n"
-        f"💰 Jami tushum: <b>{o['total_revenue']:,} so'm</b>"
-    )
-    builder = InlineKeyboardBuilder()
+
+    # format: adm_orders_{page}_{filter}
+    parts = call.data.split("_", 3)
+    page = int(parts[2])
+    status_filter = parts[3] if parts[3] != "all" else None
+
+    PAGE_SIZE = 5
+    orders, total = await get_all_orders_paginated(page, PAGE_SIZE, status_filter)
+
+    filter_label = parts[3]
+    lines = [
+        f"📦 <b>Buyurtmalar</b> [{filter_label}] "
+        f"({page * PAGE_SIZE + 1}–{min((page + 1) * PAGE_SIZE, total)} / {total})\n"
+    ]
+
+    for o in orders:
+        status_text = STATUS_UZ.get(o.get("status", ""), o.get("status", ""))
+        name = (o.get("full_name") or o.get("username") or f"ID:{o['user_id']}")[:18]
+        svc = (o.get("service_name") or "")[:22]
+        ts = time.strftime("%d.%m %H:%M", time.localtime(o.get("created_at", 0)))
+        lines.append(
+            f"🔖 <b>#{o.get('smm_order_id', o['id'])}</b> | {name}\n"
+            f"   📌 {svc}\n"
+            f"   🔢 {o.get('quantity', 0):,} | 💰 {o.get('price_uzs', 0):,} so'm\n"
+            f"   {status_text} | {ts}\n"
+        )
+
+    # Filtr tugmalari
+    builder = orders_filter_keyboard(parts[3], page)
+
+    # Sahifalash
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(
+            text="⬅️ Oldingi", callback_data=f"adm_orders_{page - 1}_{parts[3]}"
+        ))
+    if (page + 1) * PAGE_SIZE < total:
+        nav.append(InlineKeyboardButton(
+            text="Keyingi ➡️", callback_data=f"adm_orders_{page + 1}_{parts[3]}"
+        ))
+    if nav:
+        builder.row(*nav)
     builder.row(InlineKeyboardButton(text="🔙 Orqaga", callback_data="adm_panel"))
-    await call.message.edit_text(text, parse_mode="HTML", reply_markup=builder.as_markup())
+
+    await call.message.edit_text(
+        "\n".join(lines), parse_mode="HTML", reply_markup=builder.as_markup()
+    )
     await call.answer()
 
 
@@ -275,15 +350,15 @@ async def cb_adm_deposits(call: CallbackQuery):
         await call.answer("❌ Ruxsat yo'q!", show_alert=True)
         return
     d = await get_deposits_stats()
-    text = (
-        "💰 <b>Depozitlar statistikasi</b>\n\n"
-        f"⏳ Kutayotgan: <b>{d['pending_count']}</b> ({d['pending_sum']:,} so'm)\n"
-        f"📅 Bugun tasdiqlangan: <b>{d['today_confirmed']:,} so'm</b>\n"
-        f"✅ Jami tasdiqlangan: <b>{d['confirmed_sum']:,} so'm</b>"
-    )
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="🔙 Orqaga", callback_data="adm_panel"))
-    await call.message.edit_text(text, parse_mode="HTML", reply_markup=builder.as_markup())
+    await call.message.edit_text(
+        "💰 <b>Depozitlar</b>\n\n"
+        f"⏳ Kutayotgan: <b>{d['pending_count']}</b> ({d['pending_sum']:,} so'm)\n"
+        f"📅 Bugun tasdiqlangan: <b>{d['today_confirmed']:,} so'm</b>\n"
+        f"✅ Jami tasdiqlangan: <b>{d['confirmed_sum']:,} so'm</b>",
+        parse_mode="HTML", reply_markup=builder.as_markup()
+    )
     await call.answer()
 
 
@@ -296,10 +371,14 @@ async def cb_adm_top(call: CallbackQuery):
     lines = ["🏆 <b>Top 10 mijozlar:</b>\n"]
     for i, u in enumerate(users, 1):
         name = u.get("full_name") or u.get("username") or f"ID:{u['user_id']}"
-        lines.append(f"{i}. <b>{name}</b> — {u['total_spent']:,} so'm ({u['order_count']} ta)")
+        lines.append(
+            f"{i}. <b>{name}</b> — {u['total_spent']:,} so'm ({u['order_count']} ta)"
+        )
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="🔙 Orqaga", callback_data="adm_panel"))
-    await call.message.edit_text("\n".join(lines), parse_mode="HTML", reply_markup=builder.as_markup())
+    await call.message.edit_text(
+        "\n".join(lines), parse_mode="HTML", reply_markup=builder.as_markup()
+    )
     await call.answer()
 
 
@@ -313,7 +392,7 @@ async def cb_adm_pending(call: CallbackQuery):
     builder.row(InlineKeyboardButton(text="🔙 Orqaga", callback_data="adm_panel"))
     if not deposits:
         await call.message.edit_text(
-            "✅ Hozirda kutayotgan depozitlar yo'q!",
+            "✅ Kutayotgan depozitlar yo'q!",
             reply_markup=builder.as_markup()
         )
         await call.answer()
@@ -321,19 +400,10 @@ async def cb_adm_pending(call: CallbackQuery):
     lines = [f"⏳ <b>Kutayotgan: {len(deposits)} ta</b>\n"]
     for d in deposits[:10]:
         ts = time.strftime("%d.%m %H:%M", time.localtime(d.get("created_at", 0)))
-        lines.append(f"• #{d['id']} | {d.get('full_name','?')} | {d['amount']:,} so'm | {ts}")
-    await call.message.edit_text("\n".join(lines), parse_mode="HTML", reply_markup=builder.as_markup())
-    await call.answer()
-
-
-@router.callback_query(F.data == "adm_panel")
-async def cb_adm_panel(call: CallbackQuery):
-    if not is_admin(call.from_user.id):
-        await call.answer("❌ Ruxsat yo'q!", show_alert=True)
-        return
+        lines.append(
+            f"• #{d['id']} | {d.get('full_name', '?')} | {d['amount']:,} so'm | {ts}"
+        )
     await call.message.edit_text(
-        "🛠 <b>Admin panel</b>\n\nNimani ko'rmoqchisiz?",
-        reply_markup=admin_panel_keyboard(),
-        parse_mode="HTML"
+        "\n".join(lines), parse_mode="HTML", reply_markup=builder.as_markup()
     )
     await call.answer()

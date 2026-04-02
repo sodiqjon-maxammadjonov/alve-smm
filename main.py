@@ -17,9 +17,9 @@ logging.basicConfig(
 async def set_bot_commands(bot: Bot):
     user_commands = [
         BotCommand(command="start",       description="Botni ishga tushirish"),
-        BotCommand(command="commandlist", description="Komandalar royxati"),
-        BotCommand(command="balans",      description="Balansni korish"),
-        BotCommand(command="xizmatlar",   description="Xizmatlar royxati"),
+        BotCommand(command="commandlist", description="Komandalar ro'yxati"),
+        BotCommand(command="balans",      description="Balansni ko'rish"),
+        BotCommand(command="xizmatlar",   description="Xizmatlar ro'yxati"),
         BotCommand(command="buyurtmalar", description="Buyurtmalarim"),
         BotCommand(command="referral",    description="Referal dasturi"),
         BotCommand(command="yordam",      description="Yordam"),
@@ -34,7 +34,7 @@ async def set_bot_commands(bot: Bot):
         BotCommand(command="top",           description="Top 10 mijozlar"),
         BotCommand(command="broadcast",     description="Hammaga xabar"),
         BotCommand(command="balance_check", description="Balans tekshirish"),
-        BotCommand(command="add_balance",   description="Balans qoshish"),
+        BotCommand(command="add_balance",   description="Balans qo'shish"),
     ]
     try:
         await bot.set_my_commands(
@@ -45,6 +45,17 @@ async def set_bot_commands(bot: Bot):
         logging.warning(f"Admin commands set failed: {e}")
 
 
+async def referral_signup_notifier(bot: Bot):
+    """
+    Yangi foydalanuvchi referal orqali ro'yxatdan o'tganda referal egasiga xabar yuboradi.
+    Bu task start.py dagi get_or_create_user dan keyin ishga tushadi.
+    Aslida bu xabar services.py dagi birinchi buyurtmada (bonus) yuboriladi,
+    lekin ro'yxatdan o'tganda ham egasiga ma'lum qilish uchun shu task bor.
+    Hozircha bu task bo'sh — kengaytirish mumkin.
+    """
+    pass
+
+
 async def main():
     await init_db()
 
@@ -53,6 +64,7 @@ async def main():
 
     await set_bot_commands(bot)
 
+    # Router tartibi muhim — admin eng birinchi
     dp.include_router(admin.router)
     dp.include_router(start.router)
     dp.include_router(balance.router)
@@ -66,7 +78,7 @@ async def main():
     # Har 5 daqiqada order statuslarini yangilaydi
     asyncio.create_task(auto_update_orders(bot))
 
-    logging.info("Bot ishga tushdi! Auto-updater yoqildi.")
+    logging.info("Bot ishga tushdi!")
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 
 
