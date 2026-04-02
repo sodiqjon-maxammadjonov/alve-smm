@@ -54,7 +54,7 @@ PLATFORMS = {
         "👁 Ko'rishlar": [
             {
                 "service": 15982,
-                "name": "Ko'rishlar — Tez",
+                "name": "Ko'rishlar — Tez yetkzish",
                 "description": "Post ko'rishlarini tez oshiradi.\n⚡ Darhol boshlanadi.",
                 "rate": 0.0023, "min": 10, "max": 1_000_000,
             },
@@ -144,13 +144,13 @@ PLATFORMS = {
         "❤️ Layklar": [
             {
                 "service": 13154,
-                "name": "Layk — 30 kun kafolat",
+                "name": "Layk real akkauntlardan",
                 "description": "🛡 30 kun ichida tushsa bepul to'ldiriladi.",
                 "rate": 0.1432, "min": 10, "max": 500_000,
             },
             {
                 "service": 14808,
-                "name": "Layk — Tez yetkazish",
+                "name": "Tez yetkazish",
                 "description": "⚡ Bir necha daqiqada. Qulay narx.",
                 "rate": 0.1754, "min": 20, "max": 1_000_000,
             },
