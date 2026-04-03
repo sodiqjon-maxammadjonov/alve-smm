@@ -25,9 +25,16 @@ async def init_db():
                 balance         BIGINT  DEFAULT 0,
                 referred_by     BIGINT  DEFAULT NULL,
                 ref_bonus_given INTEGER DEFAULT 0,
+                discount        FLOAT   DEFAULT 0,
                 created_at      BIGINT  DEFAULT 0
             )
         """)
+        # Eski jadvalga discount ustuni qo'shish (agar yo'q bo'lsa)
+        try:
+            await conn.execute("ALTER TABLE users ADD COLUMN discount FLOAT DEFAULT 0")
+        except Exception:
+            pass
+
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS orders (
                 id            SERIAL  PRIMARY KEY,
@@ -50,10 +57,16 @@ async def init_db():
                 amount        BIGINT,
                 status        TEXT    DEFAULT 'pending',
                 check_file_id TEXT,
+                reject_reason TEXT,
                 created_at    BIGINT  DEFAULT 0,
                 confirmed_at  BIGINT  DEFAULT 0
             )
         """)
+        try:
+            await conn.execute("ALTER TABLE deposits ADD COLUMN reject_reason TEXT")
+        except Exception:
+            pass
+
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS referral_earnings (
                 id          SERIAL PRIMARY KEY,
@@ -67,10 +80,12 @@ async def init_db():
         """)
 
 
+# ── Foydalanuvchilar ──────────────────────────────────────────
+
 async def get_or_create_user(
     user_id: int, username: str, full_name: str, referred_by: int = None
 ) -> bool:
-    """Foydalanuvchini yaratadi yoki topadi. Yangi bo'lsa True qaytaradi."""
+    """Yangi bo'lsa True qaytaradi."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT user_id FROM users WHERE user_id=$1", user_id)
@@ -113,6 +128,29 @@ async def deduct_balance(user_id: int, amount: int) -> bool:
             )
     return True
 
+
+async def get_user_discount(user_id: int) -> float:
+    """Foydalanuvchining individual discount foizi (0 = oddiy narx)"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT discount FROM users WHERE user_id=$1", user_id)
+        return float(row["discount"]) if row else 0.0
+
+
+async def set_user_discount(user_id: int, discount: float) -> bool:
+    """Discount o'rnatish. -100 dan 100 gacha. Qaytaradi: muvaffaqiyatli/yo'q."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT user_id FROM users WHERE user_id=$1", user_id)
+        if not row:
+            return False
+        await conn.execute(
+            "UPDATE users SET discount=$1 WHERE user_id=$2", discount, user_id
+        )
+        return True
+
+
+# ── Depozitlar ────────────────────────────────────────────────
 
 async def create_deposit(user_id: int, amount: int, check_file_id: str) -> int:
     pool = await get_pool()
@@ -167,10 +205,16 @@ async def confirm_deposit(deposit_id: int):
             await conn.execute(
                 "UPDATE users SET balance = balance + $1 WHERE user_id = $2", amount, user_id
             )
-            return user_id, amount
+            # Referal egasiga 500 so'm bonus (balans to'ldirganda)
+            ref_row = await conn.fetchrow(
+                "SELECT referred_by FROM users WHERE user_id=$1", user_id
+            )
+            referrer_id = ref_row["referred_by"] if ref_row and ref_row["referred_by"] else None
+
+            return user_id, amount, referrer_id
 
 
-async def reject_deposit(deposit_id: int):
+async def reject_deposit(deposit_id: int, reason: str = None):
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -180,10 +224,13 @@ async def reject_deposit(deposit_id: int):
             if not row or row["status"] == "rejected":
                 return None
             await conn.execute(
-                "UPDATE deposits SET status='rejected' WHERE id=$1", deposit_id
+                "UPDATE deposits SET status='rejected', reject_reason=$1 WHERE id=$2",
+                reason, deposit_id
             )
     return row["user_id"]
 
+
+# ── Buyurtmalar ───────────────────────────────────────────────
 
 async def create_order(
     user_id, smm_order_id, service_id, service_name,
@@ -225,37 +272,37 @@ async def get_order_by_smm_id(smm_order_id: int):
         return dict(row) if row else None
 
 
+async def get_all_orders_paginated(page: int = 0, page_size: int = 5, status_filter: str = None):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        if status_filter:
+            rows = await conn.fetch(
+                "SELECT o.*, u.full_name, u.username FROM orders o "
+                "JOIN users u ON o.user_id = u.user_id "
+                "WHERE o.status = $1 ORDER BY o.created_at DESC LIMIT $2 OFFSET $3",
+                status_filter, page_size, page * page_size
+            )
+            count = int((await conn.fetchrow(
+                "SELECT COUNT(*) as cnt FROM orders WHERE status=$1", status_filter
+            ))["cnt"])
+        else:
+            rows = await conn.fetch(
+                "SELECT o.*, u.full_name, u.username FROM orders o "
+                "JOIN users u ON o.user_id = u.user_id "
+                "ORDER BY o.created_at DESC LIMIT $1 OFFSET $2",
+                page_size, page * page_size
+            )
+            count = int((await conn.fetchrow("SELECT COUNT(*) as cnt FROM orders"))["cnt"])
+        return [dict(r) for r in rows], count
+
+
+# ── Referal ───────────────────────────────────────────────────
+
 async def get_referrer(user_id: int):
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT referred_by FROM users WHERE user_id=$1", user_id)
         return row["referred_by"] if row and row["referred_by"] else None
-
-
-async def is_first_order(user_id: int) -> bool:
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT COUNT(*) as cnt FROM orders WHERE user_id=$1", user_id
-        )
-        return int(row["cnt"]) == 1
-
-
-async def was_bonus_given(user_id: int) -> bool:
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT ref_bonus_given FROM users WHERE user_id=$1", user_id
-        )
-        return bool(row["ref_bonus_given"]) if row else False
-
-
-async def mark_bonus_given(user_id: int):
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute(
-            "UPDATE users SET ref_bonus_given=1 WHERE user_id=$1", user_id
-        )
 
 
 async def add_referral_earning(
@@ -287,7 +334,7 @@ async def get_referral_stats(user_id: int) -> dict:
         ))["s"])
         bonus_earned = int((await conn.fetchrow(
             "SELECT COALESCE(SUM(amount),0) as s FROM referral_earnings "
-            "WHERE owner_id=$1 AND type='bonus'", user_id
+            "WHERE owner_id=$1 AND type IN ('signup_bonus','deposit_bonus')", user_id
         ))["s"])
         percent_earned = int((await conn.fetchrow(
             "SELECT COALESCE(SUM(amount),0) as s FROM referral_earnings "
@@ -302,7 +349,6 @@ async def get_referral_stats(user_id: int) -> dict:
 
 
 async def get_referral_history(user_id: int, limit: int = 5, offset: int = 0) -> list:
-    """Referal tarixi — from_user ning ismi bilan birga"""
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -315,6 +361,15 @@ async def get_referral_history(user_id: int, limit: int = 5, offset: int = 0) ->
             user_id, limit, offset
         )
         return [dict(r) for r in rows]
+
+
+async def get_referral_history_count(user_id: int) -> int:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT COUNT(*) as cnt FROM referral_earnings WHERE owner_id=$1", user_id
+        )
+        return int(row["cnt"])
 
 
 # ── Admin statistika ──────────────────────────────────────────
@@ -421,29 +476,3 @@ async def get_top_users(limit: int = 10) -> list:
             limit
         )
         return [dict(r) for r in rows]
-
-
-async def get_all_orders_paginated(page: int = 0, page_size: int = 5, status_filter: str = None):
-    """Admin uchun barcha buyurtmalar — sahifalash bilan"""
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        if status_filter:
-            rows = await conn.fetch(
-                "SELECT o.*, u.full_name, u.username FROM orders o "
-                "JOIN users u ON o.user_id = u.user_id "
-                "WHERE o.status = $1 "
-                "ORDER BY o.created_at DESC LIMIT $2 OFFSET $3",
-                status_filter, page_size, page * page_size
-            )
-            count = int((await conn.fetchrow(
-                "SELECT COUNT(*) as cnt FROM orders WHERE status=$1", status_filter
-            ))["cnt"])
-        else:
-            rows = await conn.fetch(
-                "SELECT o.*, u.full_name, u.username FROM orders o "
-                "JOIN users u ON o.user_id = u.user_id "
-                "ORDER BY o.created_at DESC LIMIT $1 OFFSET $2",
-                page_size, page * page_size
-            )
-            count = int((await conn.fetchrow("SELECT COUNT(*) as cnt FROM orders"))["cnt"])
-        return [dict(r) for r in rows], count

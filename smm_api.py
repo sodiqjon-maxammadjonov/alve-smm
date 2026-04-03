@@ -1,19 +1,56 @@
 import aiohttp
-from config import SMM_API_URL, SMM_API_KEY, USD_TO_UZS, MARKUP_PERCENT
+import os
+from config import SMM_API_URL, SMM_API_KEY, USD_TO_UZS
+
+# ── Narx hisoblash ─────────────────────────────────────────────
+# Qoida: arzon xizmatga ko'p markup, qimmatga kam markup.
+# Agar xizmatda "markup" field bo'lsa — o'sha ishlatiladi.
+# Yo'q bo'lsa auto_markup() qoidasi ishlaydi.
+# .env dagi MARKUP_PERCENT faqat fallback sifatida saqlanadi.
+
+def auto_markup(rate_usd_per_1000: float) -> float:
+    """Rate asosida avtomatik markup foizi"""
+    if rate_usd_per_1000 < 0.01:
+        return 250.0   # 3.5x
+    elif rate_usd_per_1000 < 0.1:
+        return 180.0   # 2.8x
+    elif rate_usd_per_1000 < 1.0:
+        return 120.0   # 2.2x
+    elif rate_usd_per_1000 < 5.0:
+        return 70.0    # 1.7x
+    else:
+        return 40.0    # 1.4x
 
 
-def usd_to_uzs_with_markup(rate_usd_per_1000: float) -> float:
-    per_1 = rate_usd_per_1000 / 1000
-    return round(per_1 * USD_TO_UZS * (1 + MARKUP_PERCENT / 100), 4)
+def get_markup(svc: dict) -> float:
+    """Xizmat uchun markup olish (xizmat > env > auto)"""
+    if "markup" in svc:
+        return float(svc["markup"])
+    env = os.getenv("MARKUP_PERCENT")
+    if env:
+        return float(env)
+    return auto_markup(float(svc["rate"]))
 
 
-def calc_order_price(rate_usd_per_1000: float, quantity: int) -> float:
-    return round(usd_to_uzs_with_markup(rate_usd_per_1000) * quantity)
+def calc_price_uzs(rate_usd_per_1000: float, quantity: int, markup: float = None) -> int:
+    if markup is None:
+        markup = auto_markup(rate_usd_per_1000)
+    per_item_uzs = (rate_usd_per_1000 / 1000) * USD_TO_UZS * (1 + markup / 100)
+    return round(per_item_uzs * quantity)
 
 
-def price_per_1000_uzs(rate_usd_per_1000: float) -> int:
-    return round(usd_to_uzs_with_markup(rate_usd_per_1000) * 1000)
+def price_per_1000_uzs(rate_usd_per_1000: float, markup: float = None) -> int:
+    if markup is None:
+        markup = auto_markup(rate_usd_per_1000)
+    return round((rate_usd_per_1000 / 1000) * USD_TO_UZS * (1 + markup / 100) * 1000)
 
+
+def cost_price_uzs_per_item(rate_usd_per_1000: float) -> float:
+    """Tan narxi (so'mda, markupsiz) — /discount uchun"""
+    return (rate_usd_per_1000 / 1000) * USD_TO_UZS
+
+
+# ── API ────────────────────────────────────────────────────────
 
 async def _post(payload: dict) -> dict | list:
     payload["key"] = SMM_API_KEY
@@ -31,7 +68,12 @@ async def get_balance_usd() -> float:
 
 
 async def place_order(service_id: int, link: str, quantity: int) -> dict:
-    return await _post({"action": "add", "service": service_id, "link": link, "quantity": quantity})
+    return await _post({
+        "action": "add",
+        "service": service_id,
+        "link": link,
+        "quantity": quantity
+    })
 
 
 async def get_order_status(order_id: int) -> dict:
@@ -39,35 +81,44 @@ async def get_order_status(order_id: int) -> dict:
 
 
 # ──────────────────────────────────────────────────────────────
-#  XIZMATLAR — har bir platforma bo'yicha bo'limlar
-#  Yangi xizmat qo'shmoqchi bo'lsangiz:
-#    1. Kerakli platformaning dict'iga yangi bo'lim yoki xizmat qo'shing
-#    2. service — Peakerr service ID
-#    3. rate    — USD per 1000 (Peakerr API dan olinadi)
-#    4. min/max — minimal/maksimal miqdor
+#  XIZMATLAR
+#
+#  Har bir xizmat dict:
+#    service     — Peakerr service ID
+#    name        — Botda ko'rinadigan nom
+#    description — Qisqa tavsif (1-2 qator)
+#    rate        — USD per 1000 (Peakerr narxi, o'zgarmaydi)
+#    min / max   — miqdor chegarasi
+#    refill      — True: "♻️ Refill kafolatli" badge
+#    bonus       — str: "15000 ta buyursangiz 25000 ta keladi" (ixtiyoriy)
+#    markup      — ixtiyoriy float, yo'q bo'lsa auto_markup()
+#
+#  YANGI XIZMAT: bo'limga dict qo'shing
+#  YANGI PLATFORMA: PLATFORMS ga yangi kalit qo'shing
 # ──────────────────────────────────────────────────────────────
 
 PLATFORMS = {
 
-    # ── ✈️ TELEGRAM ──────────────────────────────────────────────
+    # ════════════════════════════════════════════════════════
     "✈️ Telegram": {
         "👁 Ko'rishlar": [
             {
                 "service": 15982,
-                "name": "Ko'rishlar — Tez yetkzish",
-                "description": "Post ko'rishlarini tez oshiradi.\n⚡ Darhol boshlanadi.",
+                "name": "Ko'rishlar — Tez",
+                "description": "⚡ Post ko'rishlarini darhol oshiradi.",
                 "rate": 0.0023, "min": 10, "max": 1_000_000,
             },
             {
                 "service": 16926,
                 "name": "Ko'rishlar — Barqaror",
-                "description": "Tushib ketmaydigan barqaror ko'rishlar.\n✅ Uzoq muddatga ishonchli.",
+                "description": "✅ Tushib ketmaydigan, uzoq muddatli.",
                 "rate": 0.0074, "min": 50, "max": 50_000_000,
+                "refill": True,
             },
             {
                 "service": 28478,
-                "name": "Premium ko'rishlar",
-                "description": "Faqat Telegram Premium akkauntlardan ko'rishlar.\n💎 Sifatli va ishonchli.",
+                "name": "Premium ko'rishlar 💎",
+                "description": "Faqat Telegram Premium akkauntlardan.\n💎 Sifatli va ishonchli.",
                 "rate": 0.0911, "min": 10, "max": 150_000,
             },
         ],
@@ -75,7 +126,7 @@ PLATFORMS = {
             {
                 "service": 28576,
                 "name": "Aralash ijobiy reaksiyalar",
-                "description": "👍🤩🎉🔥❤️🥰 — avtomatik aralash reaksiyalar.",
+                "description": "👍🤩🎉🔥❤️🥰 — avtomatik aralash.",
                 "rate": 0.0186, "min": 10, "max": 1_000_000,
             },
             {
@@ -101,91 +152,95 @@ PLATFORMS = {
             {
                 "service": 29541,
                 "name": "Obunachi — 30 kun kafolat",
-                "description": "Real ko'rinishdagi akkauntlar.\n🛡 30 kun ichida chiqsa — bepul to'ldiriladi.",
+                "description": "Real ko'rinishdagi akkauntlar.",
                 "rate": 0.3108, "min": 10, "max": 1_000_000,
+                "refill": True,
             },
             {
                 "service": 29545,
                 "name": "Obunachi — 1 yil kafolat",
                 "description": "Real ko'rinishdagi akkauntlar.\n🛡 365 kun kafolat.",
                 "rate": 0.5311, "min": 10, "max": 1_000_000,
+                "refill": True,
             },
             {
                 "service": 29546,
-                "name": "Obunachi — Umrbod kafolat",
-                "description": "Eng ishonchli variant.\n🛡 Umrbod chiqib ketmaydi.",
+                "name": "Obunachi — Umrbod kafolat ⭐",
+                "description": "Eng ishonchli variant. 🛡 Umrbod.",
                 "rate": 0.5763, "min": 10, "max": 1_000_000,
+                "refill": True,
             },
         ],
     },
 
-    # ── 📸 INSTAGRAM ──────────────────────────────────────────────
+    # ════════════════════════════════════════════════════════
     "📸 Instagram": {
         "👁 Ko'rishlar": [
             {
+                "service": 16452,
+                "name": "Reel ko'rishlar — Eng arzon",
+                "description": "⚡ Tez va arzon Reel ko'rishlar.",
+                "rate": 0.0011, "min": 100, "max": 2_147_483_647,
+            },
+            {
                 "service": 14065,
                 "name": "Video / Reel / IGTV ko'rishlar",
-                "description": "⚡ Juda tez, bir daqiqada boshlanadi.",
+                "description": "⚡ Bir daqiqada boshlanadi.",
                 "rate": 0.0014, "min": 100, "max": 50_000_000,
             },
             {
                 "service": 17649,
                 "name": "Story ko'rishlar",
-                "description": "Faol story larga ko'rishlar. ⚡ Tez yetkaziladi.",
+                "description": "Faol story larga ko'rishlar.",
                 "rate": 0.0028, "min": 10, "max": 100_000,
-            },
-            {
-                "service": 16452,
-                "name": "Reel ko'rishlar — Eng arzon",
-                "description": "⚡ Eng tez va eng arzon Reel ko'rishlar.",
-                "rate": 0.0011, "min": 100, "max": 2_147_483_647,
             },
         ],
         "❤️ Layklar": [
             {
-                "service": 13154,
-                "name": "Layk real akkauntlardan",
-                "description": "🛡 30 kun ichida tushsa bepul to'ldiriladi.",
-                "rate": 0.1432, "min": 10, "max": 500_000,
-            },
-            {
                 "service": 14808,
-                "name": "Tez yetkazish",
+                "name": "Layk — Tez va arzon",
                 "description": "⚡ Bir necha daqiqada. Qulay narx.",
                 "rate": 0.1754, "min": 20, "max": 1_000_000,
+            },
+            {
+                "service": 13154,
+                "name": "Layk — 30 kun kafolat",
+                "description": "🛡 30 kun ichida tushsa bepul to'ldiriladi.",
+                "rate": 0.1432, "min": 10, "max": 500_000,
+                "refill": True,
             },
         ],
         "👤 Obunachilar": [
             {
-                "service": 22042,
-                "name": "Obunachi — Postlari bor Real akkauntlar",
-                "description": "Real ko'rinishdagi akkauntlar.\n✅ Ishonchli va barqaror.",
-                "rate": 0.2645, "min": 100, "max": 100_000,
+                "service": 16350,
+                "name": "Obunachi — Tez Yetkazish",
+                "description": "⚡ Tez yetkaziladi. Qulay narx.",
+                "rate": 0.3431, "min": 100, "max": 500_000,
             },
             {
-                "service": 16350,
-                "name": "Obunachi — Tez Yetetkzish",
-                "description": "⚡ Tez yetkaziladi, qulay narx.",
-                "rate": 0.3431, "min": 100, "max": 500_000,
+                "service": 22042,
+                "name": "Obunachi — Real akauntlar",
+                "description": "✅ Postlari bor real ko'rinishdagi akkauntlar.",
+                "rate": 0.2645, "min": 100, "max": 100_000,
             },
         ],
         "🔄 Ulashishlar": [
             {
                 "service": 23928,
                 "name": "Ulashishlar (Repost)",
-                "description": "⚡ Darhol boshlanadi. Postni tarqatish uchun.",
+                "description": "⚡ Darhol boshlanadi.",
                 "rate": 0.0204, "min": 10, "max": 10_000_000,
             },
         ],
     },
 
-    # ── 🎵 TIKTOK ──────────────────────────────────────────────
+    # ════════════════════════════════════════════════════════
     "🎵 TikTok": {
         "👁 Ko'rishlar": [
             {
                 "service": 14090,
                 "name": "Ko'rishlar — Real",
-                "description": "⚡ Tez yetkaziladi, real akkauntlardan.",
+                "description": "⚡ Tez va real TikTok ko'rishlar.",
                 "rate": 3.58, "min": 10, "max": 10_000,
             },
         ],
@@ -201,7 +256,7 @@ PLATFORMS = {
             {
                 "service": 2422,
                 "name": "Obunachilar — Real",
-                "description": "⚡ Real akkauntlardan obunachilar.",
+                "description": "Real akkauntlardan obunachilar.",
                 "rate": 7.16, "min": 10, "max": 10_000,
             },
         ],
@@ -221,56 +276,166 @@ PLATFORMS = {
                 "rate": 8.06, "min": 5, "max": 50_000,
             },
         ],
+        "💾 Saqlashlar": [
+            {
+                "service": 10052,
+                "name": "Saqlashlar (Save)",
+                "description": "⚡ 0–15 daqiqada boshlanadi.",
+                "rate": 1.84, "min": 10, "max": 10_000,
+            },
+        ],
     },
 
-    # ── ▶️ YOUTUBE ──────────────────────────────────────────────
-    # Qo'shmoqchi bo'lsangiz response.json dan YouTube service IDlarini toping
-    # va quyidagi shablon bo'yicha qo'shing
-    # "▶️ YouTube": {
-    #     "👁 Ko'rishlar": [
-    #         {
-    #             "service": XXXXX,
-    #             "name": "Ko'rishlar",
-    #             "description": "...",
-    #             "rate": 0.XX, "min": 100, "max": 1_000_000,
-    #         },
-    #     ],
-    # },
+    # ════════════════════════════════════════════════════════
+    "▶️ YouTube": {
+        "👁 Ko'rishlar": [
+            {
+                "service": 30749,
+                "name": "Ko'rishlar — Arzon",
+                "description": "1k–2k/kun tezlik.\n♻️ Umrbod refill kafolati.",
+                "rate": 0.9492, "min": 100, "max": 2_500_000,
+                "refill": True,
+            },
+            {
+                "service": 30751,
+                "name": "Ko'rishlar — O'rtacha",
+                "description": "10k–50k/kun tezlik.\n♻️ Umrbod refill kafolati.",
+                "rate": 0.8701, "min": 100, "max": 1_000_000_000,
+                "refill": True,
+            },
+            {
+                "service": 30727,
+                "name": "Ko'rishlar — Tez ⚡",
+                "description": "500k–1M/kun! Eng tez variant.\n♻️ Umrbod refill.",
+                "rate": 1.13, "min": 1_000, "max": 2_147_483_647,
+                "refill": True,
+            },
+        ],
+        "👍 Layklar": [
+            {
+                "service": 22709,
+                "name": "Layklar — Arzon",
+                "description": "⚡ 0–15 daqiqada. 50K/kun tezlik.",
+                "rate": 0.0791, "min": 10, "max": 10_000_000,
+            },
+            {
+                "service": 18462,
+                "name": "Layklar — O'rtacha",
+                "description": "⚡ 0–15 daqiqada boshlanadi.",
+                "rate": 0.113, "min": 10, "max": 1_000_000,
+            },
+            {
+                "service": 24133,
+                "name": "Layklar — Sifatli ♻️",
+                "description": "HQ profillar. 30 kun refill kafolati.",
+                "rate": 0.1695, "min": 10, "max": 80_000,
+                "refill": True,
+            },
+        ],
+        "🔔 Obunachi.": [
+            {
+                "service": 23304,
+                "name": "Obunachi — Arzon",
+                "description": "⚡ Tez, 10K/kun.",
+                "rate": 0.1311, "min": 10, "max": 1_000_000,
+            },
+            {
+                "service": 20415,
+                "name": "Obunachi — O'rtacha",
+                "description": "SuperInstant, 10K/kun.",
+                "rate": 0.1808, "min": 10, "max": 100_000,
+            },
+            {
+                "service": 18463,
+                "name": "Obunachi — Sifatli",
+                "description": "MQ profillar. Barqaror.",
+                "rate": 0.339, "min": 100, "max": 500_000,
+            },
+        ],
+        "💬 Izohlar": [
+            {
+                "service": 30515,
+                "name": "Custom izohlar",
+                "description": "Siz yozgan matnli izohlar qo'shiladi.",
+                "rate": 0.565, "min": 5, "max": 1_000,
+            },
+        ],
+    },
 
-    # ── 📘 FACEBOOK ──────────────────────────────────────────────
-    # "📘 Facebook": {
-    #     "👍 Layklar": [
-    #         {
-    #             "service": XXXXX,
-    #             "name": "Sahifa laykları",
-    #             "description": "...",
-    #             "rate": 0.XX, "min": 100, "max": 50_000,
-    #         },
-    #     ],
-    # },
+    # ════════════════════════════════════════════════════════
+    "📘 Facebook": {
+        "👁 Ko'rishlar": [
+            {
+                "service": 19188,
+                "name": "Video/Reel ko'rishlar — Arzon",
+                "description": "⚡ 20k–30k/kun. Eng arzon variant.",
+                "rate": 0.0283, "min": 100, "max": 100_000_000,
+            },
+            {
+                "service": 16612,
+                "name": "Video ko'rishlar — 3 soniya",
+                "description": "100k–500k/kun tezlik.",
+                "rate": 0.1356, "min": 100, "max": 1_000_000,
+            },
+            {
+                "service": 16611,
+                "name": "Video ko'rishlar — Monetizable",
+                "description": "Monetizatsiya uchun yaroqli.",
+                "rate": 0.2034, "min": 100, "max": 10_000_000,
+            },
+        ],
+        "👍 Layklar": [
+            {
+                "service": 22683,
+                "name": "Post layklari — Care 🥰",
+                "description": "Care reaksiya, real profillar.",
+                "rate": 0.0999, "min": 100, "max": 500_000,
+            },
+            {
+                "service": 20927,
+                "name": "Post layklari — O'rtacha",
+                "description": "⚡ Tez, 10K/kun.",
+                "rate": 0.6227, "min": 10, "max": 100_000,
+            },
+        ],
+        "👥 Obunachilar": [
+            {
+                "service": 22713,
+                "name": "Profil/Sahifa — Arzon",
+                "description": "500k/kun tezlik. Non drop.",
+                "rate": 0.2786, "min": 100, "max": 500_000,
+            },
+            {
+                "service": 21993,
+                "name": "Sahifa — O'rtacha",
+                "description": "Non drop, 500K/kun.",
+                "rate": 0.999, "min": 10, "max": 10_000_000,
+            },
+            {
+                "service": 15614,
+                "name": "Sahifa Like+Obunachi — Sifatli",
+                "description": "Real profillar. 5k–10k/kun.",
+                "rate": 0.904, "min": 100, "max": 150_000,
+            },
+        ],
+    },
 
-    # ── 🎮 O'YINLAR (kelajakda) ──────────────────────────────────
+    # ════════════════════════════════════════════════════════
     # "🎮 O'yinlar": {
     #     "💎 Donatlar": [
     #         {
     #             "service": XXXXX,
-    #             "name": "O'yin nomi — Donat",
+    #             "name": "PUBG — UC",
     #             "description": "...",
-    #             "rate": 0.XX, "min": 1, "max": 9999,
+    #             "rate": 0.0, "min": 1, "max": 9999,
     #         },
     #     ],
     # },
 }
 
 
-# ── API funksiyalari ──────────────────────────────────────────
-
 def get_platform_names() -> list[str]:
     return list(PLATFORMS.keys())
-
-
-def get_sections(platform: str) -> dict:
-    return PLATFORMS.get(platform, {})
 
 
 def get_section_names(platform: str) -> list[str]:

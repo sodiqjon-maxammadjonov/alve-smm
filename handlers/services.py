@@ -5,9 +5,10 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from smm_api import (
     get_platform_names, get_section_names, get_section_services,
-    find_service, calc_order_price, price_per_1000_uzs, place_order
+    find_service, calc_price_uzs, price_per_1000_uzs, place_order,
+    get_markup, cost_price_uzs_per_item
 )
-from database import get_balance, deduct_balance, create_order
+from database import get_balance, deduct_balance, create_order, get_user_discount
 import os
 
 router = Router()
@@ -18,20 +19,33 @@ class OrderState(StatesGroup):
     waiting_link = State()
 
 
-# ── Klaviaturalar ──────────────────────────────────────────────
+# ── Klaviaturalar (2 qatordan) ────────────────────────────────
 
 def platforms_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    for name in get_platform_names():
-        builder.row(InlineKeyboardButton(text=name, callback_data=f"plat_{name}"))
+    names = get_platform_names()
+    # 2 tadan qator
+    for i in range(0, len(names), 2):
+        row = names[i:i+2]
+        buttons = [
+            InlineKeyboardButton(text=n, callback_data=f"plat_{n}")
+            for n in row
+        ]
+        builder.row(*buttons)
     builder.row(InlineKeyboardButton(text="🔙 Orqaga", callback_data="main_menu"))
     return builder.as_markup()
 
 
 def sections_keyboard(platform: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    for section in get_section_names(platform):
-        builder.row(InlineKeyboardButton(text=section, callback_data=f"sec_{platform}|||{section}"))
+    sections = get_section_names(platform)
+    for i in range(0, len(sections), 2):
+        row = sections[i:i+2]
+        buttons = [
+            InlineKeyboardButton(text=s, callback_data=f"sec_{platform}|||{s}")
+            for s in row
+        ]
+        builder.row(*buttons)
     builder.row(InlineKeyboardButton(text="🔙 Orqaga", callback_data="services"))
     return builder.as_markup()
 
@@ -39,9 +53,11 @@ def sections_keyboard(platform: str) -> InlineKeyboardMarkup:
 def services_keyboard(platform: str, section: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for s in get_section_services(platform, section):
-        p1000 = price_per_1000_uzs(s["rate"])
+        markup = get_markup(s)
+        p1000 = price_per_1000_uzs(s["rate"], markup)
+        refill_badge = " ♻️" if s.get("refill") else ""
         builder.row(InlineKeyboardButton(
-            text=f"{s['name']} — {p1000:,} so'm/1000",
+            text=f"{s['name']}{refill_badge} — {p1000:,} so'm/1000",
             callback_data=f"svc_{s['service']}"
         ))
     builder.row(InlineKeyboardButton(text="🔙 Orqaga", callback_data=f"plat_{platform}"))
@@ -61,6 +77,20 @@ def back_to_main() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="main_menu"))
     return builder.as_markup()
+
+
+def _svc_card(svc: dict, markup: float) -> str:
+    """Xizmat kartasi matni"""
+    p1000 = price_per_1000_uzs(svc["rate"], markup)
+    refill_line = "\n♻️ <b>Refill kafolatli</b>" if svc.get("refill") else ""
+    bonus_line = f"\n🎁 <b>Bonus:</b> {svc['bonus']}" if svc.get("bonus") else ""
+    return (
+        f"<b>{svc['name']}</b>{refill_line}\n\n"
+        f"📝 {svc.get('description', '')}{bonus_line}\n\n"
+        f"📊 Min: <b>{svc['min']:,}</b> | Max: <b>{svc['max']:,}</b>\n"
+        f"💰 Narx: <b>{p1000:,} so'm / 1 000 ta</b>\n\n"
+        f"✏️ Nechta buyurtma bermoqchisiz?"
+    )
 
 
 # ── Handlerlar ─────────────────────────────────────────────────
@@ -88,7 +118,6 @@ async def cb_platform(call: CallbackQuery):
 
 @router.callback_query(F.data.startswith("sec_"))
 async def cb_section(call: CallbackQuery):
-    # format: sec_PLATFORM|||SECTION
     parts = call.data[4:].split("|||", 1)
     platform, section = parts[0], parts[1]
     await call.message.edit_text(
@@ -112,7 +141,23 @@ async def cb_service_detail(call: CallbackQuery, state: FSMContext):
         await call.answer("❌ Xizmat topilmadi!", show_alert=True)
         return
 
-    p1000 = price_per_1000_uzs(svc["rate"])
+    # Foydalanuvchining individual discountini tekshir
+    discount = await get_user_discount(call.from_user.id)
+    markup = get_markup(svc)
+
+    # Discount — tan narxiga qarab hisoblanadi
+    # 0%: oddiy markup
+    # >0%: markup kamayadi (lekin hech qachon tan narxidan past emas)
+    # <0%: markup oshadi (extra qimmatlashtirish)
+    if discount != 0:
+        cost = cost_price_uzs_per_item(svc["rate"]) * 1000  # per 1000
+        base_price = price_per_1000_uzs(svc["rate"], markup)
+        profit = base_price - cost
+        adjusted_profit = profit * (1 - discount / 100)
+        effective_price = max(cost, cost + adjusted_profit)
+        # effective markupni qayta hisoblash
+        if cost > 0:
+            markup = max(0, (effective_price / cost - 1) * 100)
 
     await state.update_data(
         service_id=service_id,
@@ -121,16 +166,12 @@ async def cb_service_detail(call: CallbackQuery, state: FSMContext):
         min_q=svc["min"],
         max_q=svc["max"],
         rate=svc["rate"],
+        markup=markup,
     )
     await state.set_state(OrderState.waiting_quantity)
 
     await call.message.edit_text(
-        f"<b>{svc['name']}</b>\n\n"
-        f"📝 {svc.get('description', '')}\n\n"
-        f"📊 Minimal: <b>{svc['min']:,}</b>\n"
-        f"📊 Maksimal: <b>{svc['max']:,}</b>\n"
-        f"💰 Narx: <b>{p1000:,} so'm / 1 000 ta</b>\n\n"
-        f"✏️ Nechta buyurtma bermoqchisiz?",
+        _svc_card(svc, markup),
         reply_markup=back_to_main(),
         parse_mode="HTML"
     )
@@ -161,7 +202,7 @@ async def process_quantity(message: Message, state: FSMContext):
     await message.answer(
         "🔗 Link yuboring:\n\n"
         "📌 Telegram: kanal yoki post linki\n"
-        "📌 Instagram / TikTok: post yoki profil linki"
+        "📌 Instagram / TikTok / YouTube / Facebook: post yoki profil linki"
     )
 
 
@@ -173,26 +214,29 @@ async def process_link(message: Message, state: FSMContext):
         return
 
     data = await state.get_data()
-    total_price = calc_order_price(data["rate"], data["quantity"])
+    markup = data.get("markup")
+    total_price = calc_price_uzs(data["rate"], data["quantity"], markup)
     balance = await get_balance(message.from_user.id)
 
     await state.update_data(link=link, total_price=total_price)
 
     enough = balance >= total_price
-    status_text = (
-        "✅ Balansingiz yetarli"
-        if enough else
-        f"❌ Balansingiz yetarli emas! ({balance:,.0f} so'm bor)"
-    )
+    discount_line = ""
+    if data.get("markup") is not None:
+        discount = await get_user_discount(message.from_user.id)
+        if discount != 0:
+            sign = "-" if discount > 0 else "+"
+            discount_line = f"\n🏷 Chegirma: <b>{sign}{abs(discount):.0f}%</b>"
 
     await message.answer(
         f"📦 <b>Buyurtma ma'lumotlari:</b>\n\n"
         f"🏷 Xizmat: <b>{data['service_name']}</b>\n"
         f"🔢 Miqdor: <b>{data['quantity']:,}</b>\n"
         f"🔗 Link: <code>{link}</code>\n"
-        f"💰 Narx: <b>{total_price:,} so'm</b>\n"
+        f"💰 Narx: <b>{total_price:,} so'm</b>{discount_line}\n"
         f"💳 Balans: <b>{balance:,.0f} so'm</b>\n\n"
-        f"{status_text}",
+        + ("✅ Balansingiz yetarli" if enough else
+           f"❌ Balansingiz yetarli emas!\n💡 Kerak: {total_price:,} | Bor: {balance:,}"),
         reply_markup=(
             order_confirm_keyboard(data["service_id"], data["quantity"])
             if enough else back_to_main()
@@ -227,7 +271,6 @@ async def cb_confirm_order(call: CallbackQuery, state: FSMContext, bot: Bot):
     smm_order_id = result.get("order")
 
     if not smm_order_id:
-        # Pul qaytariladi
         await deduct_balance(call.from_user.id, -total_price)
         admin_username = os.getenv("ADMIN_USERNAME", "your_admin_username")
         b = InlineKeyboardBuilder()
@@ -256,10 +299,9 @@ async def cb_confirm_order(call: CallbackQuery, state: FSMContext, bot: Bot):
         service_name, platform, link, quantity, total_price
     )
 
-    # ── Referal mexanikasi ────────────────────────────────────
+    # Referal foizi
     from database import get_referrer, add_referral_earning
     from config import REFERRAL_PERCENT
-
     referrer_id = await get_referrer(call.from_user.id)
     if referrer_id:
         percent_amount = round(total_price * REFERRAL_PERCENT / 100)
@@ -308,7 +350,10 @@ async def cb_retry_order(call: CallbackQuery, state: FSMContext):
         await call.answer("❌ Xizmat topilmadi!", show_alert=True)
         return
 
-    total_price = calc_order_price(svc["rate"], quantity)
+    discount = await get_user_discount(call.from_user.id)
+    markup = get_markup(svc)
+    total_price = calc_price_uzs(svc["rate"], quantity, markup)
+
     await state.update_data(
         service_id=service_id,
         service_name=svc["name"],
@@ -316,6 +361,7 @@ async def cb_retry_order(call: CallbackQuery, state: FSMContext):
         min_q=svc["min"],
         max_q=svc["max"],
         rate=svc["rate"],
+        markup=markup,
         quantity=quantity,
         total_price=total_price,
     )

@@ -1,5 +1,4 @@
 import os
-import time
 from aiogram import Router, F, Bot
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardButton,
@@ -8,12 +7,19 @@ from aiogram.types import (
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
-from database import get_or_create_user, get_balance, get_user_orders, get_referral_stats
+from database import (
+    get_or_create_user, get_balance, get_user_orders,
+    get_referral_stats, get_referral_history, get_referral_history_count,
+    add_referral_earning
+)
 from config import REFERRAL_PERCENT, REFERRAL_BONUS
 
 router = Router()
 
 BOT_USERNAME = os.getenv("BOT_USERNAME", "zendor_smm_bot")
+SIGNUP_BONUS = int(os.getenv("SIGNUP_BONUS", "100"))   # Ro'yxatdan o'tganda
+DEPOSIT_BONUS = int(os.getenv("DEPOSIT_BONUS", "500"))  # Balans to'ldirganda
+
 ADMIN_IDS_RAW = os.getenv("ADMIN_ID", "7917217047")
 try:
     ADMIN_IDS = [int(x.strip()) for x in ADMIN_IDS_RAW.split(",")]
@@ -38,13 +44,14 @@ ADMIN_COMMANDS = [
     ("top",           "🏆 Top 10 mijozlar"),
     ("balance_check", "💳 Balans tekshirish <id>"),
     ("add_balance",   "➕ Balans qo'shish <id> <summa>"),
+    ("discount",      "🏷 Chegirma o'rnatish <id> <foiz>"),
     ("broadcast",     "📢 Hammaga xabar"),
 ]
 
 WELCOME_TEXT = (
     "👋 Assalomu alaykum, <b>{name}</b>!\n\n"
-    "🚀 <b>Zendor SMM</b> — Telegram, Instagram, TikTok\n"
-    "uchun eng arzon va tez SMM xizmatlari!\n\n"
+    "🚀 <b>Zendor SMM</b> — Telegram, Instagram, TikTok,\n"
+    "YouTube va Facebook uchun eng arzon SMM!\n\n"
     "⚡ <b>Nima qila olasiz?</b>\n"
     "├ 📈 Obunachi, ko'rish, layk oshirish\n"
     "├ 💰 Balansni karta orqali to'ldirish\n"
@@ -117,23 +124,25 @@ def balance_menu():
 
 
 def services_menu():
-    builder = InlineKeyboardBuilder()
     from smm_api import get_platform_names
-    for name in get_platform_names():
-        builder.row(InlineKeyboardButton(text=name, callback_data=f"plat_{name}"))
+    builder = InlineKeyboardBuilder()
+    names = get_platform_names()
+    for i in range(0, len(names), 2):
+        row = names[i:i+2]
+        builder.row(*[InlineKeyboardButton(text=n, callback_data=f"plat_{n}") for n in row])
     builder.row(InlineKeyboardButton(text="🔙 Orqaga", callback_data="main_menu"))
     return builder.as_markup()
 
 
 def referral_keyboard(user_id: int):
-    builder = InlineKeyboardBuilder()
     ref_link = f"https://t.me/{BOT_USERNAME}?start=REF_{user_id}"
+    builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(
         text="🔗 Havolani ulashish",
         switch_inline_query=(
-            f"🚀 Telegram, Instagram, TikTok uchun eng arzon SMM!\n\n"
+            f"🚀 Telegram, Instagram, TikTok, YouTube uchun eng arzon SMM!\n\n"
             f"✅ Ishonchli | ⚡ Tez | 💰 Arzon\n\n"
-            f"{ref_link}"
+            f"👇 Ro'yxatdan o'ting:\n{ref_link}"
         )
     ))
     builder.row(InlineKeyboardButton(
@@ -147,9 +156,10 @@ def referral_keyboard(user_id: int):
 def _referral_text(stats: dict, ref_link: str) -> str:
     return (
         "🎁 <b>Referal dasturi</b>\n\n"
-        "Do'stlaringizni taklif qiling va daromad oling!\n\n"
+        "Do'stlaringizni taklif qiling va avtomatik daromad oling!\n\n"
         "💸 <b>Qanday ishlaydi?</b>\n"
-        f"├ Ro'yxatdan o'tsa → <b>+{REFERRAL_BONUS:,} so'm bonus</b>\n"
+        f"├ Ro'yxatdan o'tsa → <b>+{SIGNUP_BONUS:,} so'm</b> (darhol)\n"
+        f"├ Balans to'ldirsa → <b>+{DEPOSIT_BONUS:,} so'm</b>\n"
         f"└ Har buyurtmasidan → <b>{REFERRAL_PERCENT:.0f}% avtomatik</b>\n\n"
         "📊 <b>Sizning statistikangiz:</b>\n"
         f"├ 👥 Taklif qilganlar: <b>{stats['invited']} kishi</b>\n"
@@ -185,19 +195,20 @@ async def cmd_start(message: Message, state: FSMContext, bot: Bot):
     await state.clear()
 
     # Yangi foydalanuvchi referal orqali kelsa:
-    # - Unga hech narsa ko'rsatmaymiz (oddiy welcome)
-    # - Referal egasiga "yangi odam kirdi + 200 so'm bonus" xabari
+    # - Unga hech qanday maxsus xabar yo'q (oddiy welcome)
+    # - Referal egasiga: "kimdir kirdi + 100 so'm tushdi"
     if is_new and referred_by:
         user = message.from_user
         name = f"@{user.username}" if user.username else user.full_name
         try:
-            from database import add_referral_earning
-            await add_referral_earning(referred_by, user.id, REFERRAL_BONUS, 0, "signup_bonus")
+            await add_referral_earning(
+                referred_by, user.id, SIGNUP_BONUS, 0, "signup_bonus"
+            )
             await bot.send_message(
                 referred_by,
-                f"🎉 <b>Yangi referal!</b>\n\n"
-                f"👤 {name} sizning havolangiz orqali ro'yxatdan o'tdi!\n"
-                f"💰 <b>+{REFERRAL_BONUS:,} so'm</b> balansingizga tushdi!",
+                f"👤 <b>Yangi referal!</b>\n\n"
+                f"{name} sizning havolangiz orqali ro'yxatdan o'tdi!\n"
+                f"➕ <b>+{SIGNUP_BONUS:,} so'm</b> balansingizga tushdi!",
                 parse_mode="HTML"
             )
         except Exception:
@@ -214,7 +225,7 @@ async def cmd_start(message: Message, state: FSMContext, bot: Bot):
     )
 
 
-# ── Komanda handlerlari ───────────────────────────────────────
+# ── Komandalar ────────────────────────────────────────────────
 
 @router.message(Command("commandlist", "commandList", "commands"))
 async def cmd_commandlist(message: Message):
@@ -234,8 +245,7 @@ async def cmd_balans(message: Message):
     bal = await get_balance(message.from_user.id)
     await message.answer(
         f"💰 <b>Balansingiz:</b> {bal:,} so'm",
-        reply_markup=balance_menu(),
-        parse_mode="HTML"
+        reply_markup=balance_menu(), parse_mode="HTML"
     )
 
 
@@ -243,8 +253,7 @@ async def cmd_balans(message: Message):
 async def cmd_xizmatlar(message: Message):
     await message.answer(
         "🛍 <b>Xizmatlar</b>\n\nPlatformani tanlang:",
-        reply_markup=services_menu(),
-        parse_mode="HTML"
+        reply_markup=services_menu(), parse_mode="HTML"
     )
 
 
@@ -284,8 +293,7 @@ async def cmd_yordam(message: Message):
     admin_username = os.getenv("ADMIN_USERNAME", "smo_2811").lstrip("@")
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(
-        text="👨‍💼 Admin bilan bog'lanish",
-        url=f"https://t.me/{admin_username}"
+        text="👨‍💼 Admin bilan bog'lanish", url=f"https://t.me/{admin_username}"
     ))
     builder.row(InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="main_menu"))
     await message.answer(
@@ -298,8 +306,7 @@ async def cmd_yordam(message: Message):
         "➡️ Ha, bajarilmagan qismi qaytariladi\n\n"
         "❓ <b>Minimal to'ldirish summasi?</b>\n"
         "➡️ 5,000 so'mdan boshlanadi",
-        reply_markup=builder.as_markup(),
-        parse_mode="HTML"
+        reply_markup=builder.as_markup(), parse_mode="HTML"
     )
 
 
@@ -368,8 +375,7 @@ async def handle_reply_button(message: Message):
 async def cb_main_menu(call: CallbackQuery):
     await call.message.edit_text(
         WELCOME_TEXT.format(name=call.from_user.first_name),
-        reply_markup=main_menu_keyboard(),
-        parse_mode="HTML"
+        reply_markup=main_menu_keyboard(), parse_mode="HTML"
     )
     await call.answer()
 
@@ -379,8 +385,7 @@ async def cb_balance(call: CallbackQuery):
     bal = await get_balance(call.from_user.id)
     await call.message.edit_text(
         f"💰 <b>Balansingiz:</b> {bal:,} so'm\n\nBalansni to'ldirish uchun bosing.",
-        reply_markup=balance_menu(),
-        parse_mode="HTML"
+        reply_markup=balance_menu(), parse_mode="HTML"
     )
     await call.answer()
 
@@ -427,8 +432,7 @@ async def cb_support(call: CallbackQuery):
         "➡️ Ha, bajarilmagan qismi qaytariladi\n\n"
         "❓ <b>Minimal to'ldirish summasi?</b>\n"
         "➡️ 5,000 so'mdan boshlanadi",
-        reply_markup=builder.as_markup(),
-        parse_mode="HTML"
+        reply_markup=builder.as_markup(), parse_mode="HTML"
     )
     await call.answer()
 
@@ -447,8 +451,7 @@ async def cb_referral(call: CallbackQuery):
 
 @router.callback_query(F.data.startswith("referral_history_"))
 async def cb_referral_history(call: CallbackQuery):
-    """Referal tarixi — sahifalash bilan, 5 tadan"""
-    from database import get_referral_history
+    import time as _time
     page = int(call.data.split("_")[2])
     PAGE_SIZE = 5
 
@@ -458,31 +461,48 @@ async def cb_referral_history(call: CallbackQuery):
     builder = InlineKeyboardBuilder()
 
     if not rows:
+        builder.row(InlineKeyboardButton(text="🔙 Orqaga", callback_data="referral"))
         await call.message.edit_text(
-            "📋 <b>Referal tarixim</b>\n\nHali referal daromad yo'q.",
-            reply_markup=InlineKeyboardBuilder().row(
-                InlineKeyboardButton(text="🔙 Orqaga", callback_data="referral")
-            ).as_markup(),
-            parse_mode="HTML"
+            "📋 <b>Referal tarixi</b>\n\nHali referal daromad yo'q.",
+            reply_markup=builder.as_markup(), parse_mode="HTML"
         )
         await call.answer()
         return
 
-    lines = [f"📋 <b>Referal tarixi</b> ({page * PAGE_SIZE + 1}–{page * PAGE_SIZE + len(rows)}):\n"]
+    start = page * PAGE_SIZE + 1
+    end = page * PAGE_SIZE + len(rows)
+    lines = [f"📋 <b>Referal tarixi</b> ({start}–{end} / {total})\n"]
+
+    TYPE_ICON = {
+        "signup_bonus":  "👤",
+        "deposit_bonus": "💳",
+        "percent":       "💰",
+    }
+    TYPE_LABEL = {
+        "signup_bonus":  "Ro'yxatdan o'tdi",
+        "deposit_bonus": "Balans to'ldirdi",
+        "percent":       "Buyurtma berdi",
+    }
+
     for r in rows:
-        type_icon = "🎁" if r["type"] == "bonus" else "💰"
+        icon = TYPE_ICON.get(r["type"], "💸")
+        label = TYPE_LABEL.get(r["type"], r["type"])
         from_name = r.get("from_name") or f"ID:{r['from_user']}"
-        import time as _time
         ts = _time.strftime("%d.%m.%Y", _time.localtime(r.get("created_at", 0)))
         lines.append(
-            f"{type_icon} <b>+{r['amount']:,} so'm</b> — {from_name} | {ts}"
+            f"{icon} <b>+{r['amount']:,} so'm</b> — {from_name}\n"
+            f"   {label} | {ts}"
         )
 
     nav = []
     if page > 0:
-        nav.append(InlineKeyboardButton(text="⬅️ Oldingi", callback_data=f"referral_history_{page - 1}"))
+        nav.append(InlineKeyboardButton(
+            text="⬅️ Oldingi", callback_data=f"referral_history_{page - 1}"
+        ))
     if (page + 1) * PAGE_SIZE < total:
-        nav.append(InlineKeyboardButton(text="Keyingi ➡️", callback_data=f"referral_history_{page + 1}"))
+        nav.append(InlineKeyboardButton(
+            text="Keyingi ➡️", callback_data=f"referral_history_{page + 1}"
+        ))
     if nav:
         builder.row(*nav)
     builder.row(InlineKeyboardButton(text="🔙 Orqaga", callback_data="referral"))
@@ -491,13 +511,3 @@ async def cb_referral_history(call: CallbackQuery):
         "\n".join(lines), reply_markup=builder.as_markup(), parse_mode="HTML"
     )
     await call.answer()
-
-
-async def get_referral_history_count(user_id: int) -> int:
-    from database import get_pool
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT COUNT(*) as cnt FROM referral_earnings WHERE owner_id=$1", user_id
-        )
-        return int(row["cnt"])

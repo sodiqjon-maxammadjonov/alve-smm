@@ -7,7 +7,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database import (
     get_users_stats, get_orders_stats, get_deposits_stats,
     get_top_users, get_pending_deposits, get_pool,
-    get_all_orders_paginated
+    get_all_orders_paginated, set_user_discount, get_user_discount
 )
 
 router = Router()
@@ -52,21 +52,26 @@ def admin_panel_keyboard():
 def orders_filter_keyboard(current: str, page: int):
     builder = InlineKeyboardBuilder()
     filters = [
-        ("Hammasi", "all"),
+        ("📋 Hammasi", "all"),
         ("⏳ Kutish", "Pending"),
         ("🔄 Jarayon", "In progress"),
         ("✅ Bajarildi", "Completed"),
         ("❌ Bekor", "Canceled"),
     ]
-    row = []
-    for label, key in filters:
-        prefix = "▶ " if key == current else ""
-        row.append(InlineKeyboardButton(
+    row1 = []
+    row2 = []
+    for i, (label, key) in enumerate(filters):
+        prefix = "▸ " if key == current else ""
+        btn = InlineKeyboardButton(
             text=f"{prefix}{label}",
             callback_data=f"adm_orders_0_{key}"
-        ))
-    builder.row(*row[:3])
-    builder.row(*row[3:])
+        )
+        if i < 3:
+            row1.append(btn)
+        else:
+            row2.append(btn)
+    builder.row(*row1)
+    builder.row(*row2)
     return builder
 
 
@@ -92,7 +97,7 @@ async def cmd_stats(message: Message):
     u = await get_users_stats()
     o = await get_orders_stats()
     d = await get_deposits_stats()
-    text = (
+    await message.answer(
         "📊 <b>Bot statistikasi</b>\n\n"
         "👥 <b>Foydalanuvchilar:</b>\n"
         f"├ Jami: <b>{u['total']:,}</b>\n"
@@ -105,15 +110,15 @@ async def cmd_stats(message: Message):
         f"├ Bugun: <b>{o['today_orders']}</b> (+{o['today_revenue']:,} so'm)\n"
         f"├ Bajarilgan: <b>{o['completed']}</b>\n"
         f"├ Jarayonda: <b>{o['pending']}</b>\n"
-        f"├ Bekor qilingan: <b>{o['canceled']}</b>\n"
+        f"├ Bekor: <b>{o['canceled']}</b>\n"
         f"└ Jami tushum: <b>{o['total_revenue']:,} so'm</b>\n\n"
         "💰 <b>Depozitlar:</b>\n"
         f"├ Kutayotgan: <b>{d['pending_count']}</b> ({d['pending_sum']:,} so'm)\n"
         f"├ Bugun tasdiqlangan: <b>{d['today_confirmed']:,} so'm</b>\n"
         f"└ Jami tasdiqlangan: <b>{d['confirmed_sum']:,} so'm</b>\n\n"
-        f"👛 <b>Foydalanuvchilar balansi:</b> {u['total_balance']:,} so'm"
+        f"👛 <b>Foydalanuvchilar balansi:</b> {u['total_balance']:,} so'm",
+        parse_mode="HTML", reply_markup=admin_panel_keyboard()
     )
-    await message.answer(text, parse_mode="HTML", reply_markup=admin_panel_keyboard())
 
 
 # ── /users ────────────────────────────────────────────────────
@@ -193,16 +198,18 @@ async def cmd_balance_check(message: Message):
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT user_id, full_name, username, balance FROM users WHERE user_id=$1", uid
+            "SELECT user_id, full_name, username, balance, discount FROM users WHERE user_id=$1", uid
         )
     if not row:
         await message.answer("❌ Foydalanuvchi topilmadi")
         return
+    discount = float(row["discount"] or 0)
+    discount_line = f"\n🏷 Chegirma: <b>{discount:+.0f}%</b>" if discount != 0 else ""
     await message.answer(
         f"👤 <b>{row['full_name']}</b>\n"
         f"🆔 ID: <code>{row['user_id']}</code>\n"
         f"👤 Username: @{row['username'] or 'yoq'}\n"
-        f"💰 Balans: <b>{row['balance']:,} so'm</b>",
+        f"💰 Balans: <b>{row['balance']:,} so'm</b>{discount_line}",
         parse_mode="HTML"
     )
 
@@ -221,7 +228,7 @@ async def cmd_add_balance(message: Message, bot: Bot):
         uid = int(parts[1])
         amount = int(parts[2])
     except ValueError:
-        await message.answer("❌ User ID va summa raqam bo'lishi kerak")
+        await message.answer("❌ Raqam bo'lishi kerak")
         return
     if amount <= 0:
         await message.answer("❌ Summa musbat bo'lishi kerak")
@@ -253,7 +260,71 @@ async def cmd_add_balance(message: Message, bot: Bot):
     )
 
 
-# ── Callback: admin panel ─────────────────────────────────────
+# ── /discount ─────────────────────────────────────────────────
+# Foydalanish: /discount <user_id> <foiz>
+# foiz: -100 dan 100 gacha
+#   +50 → narx 50% arzonlashadi (tan narxdan yuqori)
+#  +100 → faqat tan narxi
+#   -30 → narx 30% qimmatlashadi
+#    0  → oddiy narx
+
+@router.message(Command("discount"))
+async def cmd_discount(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+    parts = message.text.split()
+    if len(parts) < 3:
+        await message.answer(
+            "❌ <b>Foydalanish:</b> /discount &lt;user_id&gt; &lt;foiz&gt;\n\n"
+            "📌 Foiz qoidasi:\n"
+            "├ <b>+50</b> → narx 50% arzonlashadi\n"
+            "├ <b>+100</b> → faqat tan narxi (maksimal chegirma)\n"
+            "├ <b>0</b> → oddiy narx (chegirma yo'q)\n"
+            "└ <b>-30</b> → narx 30% qimmatlashadi\n\n"
+            "Misol: /discount 123456789 50",
+            parse_mode="HTML"
+        )
+        return
+
+    try:
+        uid = int(parts[1])
+        discount = float(parts[2])
+    except ValueError:
+        await message.answer("❌ User ID va foiz raqam bo'lishi kerak")
+        return
+
+    if discount < -100 or discount > 100:
+        await message.answer("❌ Foiz -100 dan 100 gacha bo'lishi kerak")
+        return
+
+    success = await set_user_discount(uid, discount)
+    if not success:
+        await message.answer("❌ Foydalanuvchi topilmadi")
+        return
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT full_name FROM users WHERE user_id=$1", uid)
+
+    if discount > 0:
+        desc = f"narxi {discount:.0f}% arzonlashadi"
+        emoji = "🎁"
+    elif discount < 0:
+        desc = f"narxi {abs(discount):.0f}% qimmatlashadi"
+        emoji = "💸"
+    else:
+        desc = "oddiy narx (chegirma bekor qilindi)"
+        emoji = "🔄"
+
+    await message.answer(
+        f"{emoji} <b>{row['full_name']}</b> uchun chegirma o'rnatildi:\n\n"
+        f"🏷 Chegirma: <b>{discount:+.0f}%</b>\n"
+        f"📌 Natija: {desc}",
+        parse_mode="HTML"
+    )
+
+
+# ── Callbacks ─────────────────────────────────────────────────
 
 @router.callback_query(F.data == "adm_panel")
 async def cb_adm_panel(call: CallbackQuery):
@@ -262,8 +333,7 @@ async def cb_adm_panel(call: CallbackQuery):
         return
     await call.message.edit_text(
         "🛠 <b>Admin panel</b>\n\nNimani ko'rmoqchisiz?",
-        reply_markup=admin_panel_keyboard(),
-        parse_mode="HTML"
+        reply_markup=admin_panel_keyboard(), parse_mode="HTML"
     )
     await call.answer()
 
@@ -295,19 +365,17 @@ async def cb_adm_orders(call: CallbackQuery):
         await call.answer("❌ Ruxsat yo'q!", show_alert=True)
         return
 
-    # format: adm_orders_{page}_{filter}
     parts = call.data.split("_", 3)
     page = int(parts[2])
-    status_filter = parts[3] if parts[3] != "all" else None
+    fkey = parts[3]
+    status_filter = None if fkey == "all" else fkey
 
     PAGE_SIZE = 5
     orders, total = await get_all_orders_paginated(page, PAGE_SIZE, status_filter)
 
-    filter_label = parts[3]
-    lines = [
-        f"📦 <b>Buyurtmalar</b> [{filter_label}] "
-        f"({page * PAGE_SIZE + 1}–{min((page + 1) * PAGE_SIZE, total)} / {total})\n"
-    ]
+    start = page * PAGE_SIZE + 1
+    end = min((page + 1) * PAGE_SIZE, total)
+    lines = [f"📦 <b>Buyurtmalar [{fkey}]</b> ({start}–{end} / {total})\n"]
 
     for o in orders:
         status_text = STATUS_UZ.get(o.get("status", ""), o.get("status", ""))
@@ -321,18 +389,16 @@ async def cb_adm_orders(call: CallbackQuery):
             f"   {status_text} | {ts}\n"
         )
 
-    # Filtr tugmalari
-    builder = orders_filter_keyboard(parts[3], page)
+    builder = orders_filter_keyboard(fkey, page)
 
-    # Sahifalash
     nav = []
     if page > 0:
         nav.append(InlineKeyboardButton(
-            text="⬅️ Oldingi", callback_data=f"adm_orders_{page - 1}_{parts[3]}"
+            text="⬅️ Oldingi", callback_data=f"adm_orders_{page - 1}_{fkey}"
         ))
     if (page + 1) * PAGE_SIZE < total:
         nav.append(InlineKeyboardButton(
-            text="Keyingi ➡️", callback_data=f"adm_orders_{page + 1}_{parts[3]}"
+            text="Keyingi ➡️", callback_data=f"adm_orders_{page + 1}_{fkey}"
         ))
     if nav:
         builder.row(*nav)
@@ -392,8 +458,7 @@ async def cb_adm_pending(call: CallbackQuery):
     builder.row(InlineKeyboardButton(text="🔙 Orqaga", callback_data="adm_panel"))
     if not deposits:
         await call.message.edit_text(
-            "✅ Kutayotgan depozitlar yo'q!",
-            reply_markup=builder.as_markup()
+            "✅ Kutayotgan depozitlar yo'q!", reply_markup=builder.as_markup()
         )
         await call.answer()
         return

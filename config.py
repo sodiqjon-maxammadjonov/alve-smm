@@ -15,7 +15,9 @@ CARD_OWNER = os.getenv("CARD_OWNER")
 MIN_DEPOSIT = int(os.getenv("MIN_DEPOSIT", "5000"))
 MAX_DEPOSIT = int(os.getenv("MAX_DEPOSIT", "500000"))
 REFERRAL_PERCENT = float(os.getenv("REFERRAL_PERCENT", "10"))
-REFERRAL_BONUS = int(os.getenv("REFERRAL_BONUS", "500"))
+REFERRAL_BONUS = int(os.getenv("REFERRAL_BONUS", "100"))
+SIGNUP_BONUS = int(os.getenv("SIGNUP_BONUS", "100"))
+DEPOSIT_BONUS = int(os.getenv("DEPOSIT_BONUS", "500"))
 
 TELEGRAM_KEYWORDS = ["telegram", "tg", "телеграм"]
 INSTAGRAM_KEYWORDS = ["instagram", "insta", "ig", "инстаграм"]
