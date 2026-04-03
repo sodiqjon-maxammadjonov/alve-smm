@@ -419,7 +419,189 @@ PLATFORMS = {
             },
         ],
     },
+# ══════════════════════════════════════════════════════════════
+# smm_api.py → PLATFORMS dictiga qo'shadigan yangi platformalar
+# Facebook blokidan keyin, oxirgi kommentdan oldin joylashtiring
+# ══════════════════════════════════════════════════════════════
 
+    # ════════════════════════════════════════════════════════
+    "🧵 Threads": {
+        "👁 Ko'rishlar": [
+            {
+                "service": 30765,
+                "name": "Ko'rishlar — Arzon",
+                "description": "⚡ Darhol boshlanadi. Eng qulay narx.",
+                "rate": 1.84, "min": 10, "max": 50_000,
+            },
+        ],
+        "❤️ Layklar": [
+            {
+                "service": 30760,
+                "name": "Layklar — Tez",
+                "description": "⚡ Bir necha daqiqada boshlanadi.",
+                "rate": 1.84, "min": 10, "max": 5_000,
+            },
+            {
+                "service": 29559,
+                "name": "Layklar — Organik HQ",
+                "description": "✅ HQ akkauntlar. Past tushish.",
+                "rate": 8.475, "min": 50, "max": 50_000,
+            },
+        ],
+        "👤 Obunachilar": [
+            {
+                "service": 30759,
+                "name": "Obunachilar — Tez",
+                "description": "⚡ Tez yetkaziladi.",
+                "rate": 5.53, "min": 10, "max": 5_000,
+            },
+            {
+                "service": 29557,
+                "name": "Obunachilar — Organik HQ",
+                "description": "✅ Real ko'rinishdagi HQ akkauntlar.",
+                "rate": 15.255, "min": 100, "max": 50_000,
+            },
+            {
+                "service": 29558,
+                "name": "Obunachilar — Organik + Refill ♻️",
+                "description": "HQ akkauntlar. 🛡 Refill kafolatli.",
+                "rate": 16.95, "min": 100, "max": 50_000,
+                "refill": True,
+            },
+        ],
+        "🔄 Repostlar": [
+            {
+                "service": 30761,
+                "name": "Repostlar — Tez",
+                "description": "⚡ Darhol boshlanadi.",
+                "rate": 2.77, "min": 10, "max": 5_000,
+            },
+            {
+                "service": 29561,
+                "name": "Repostlar — Organik HQ",
+                "description": "✅ HQ akkauntlar. Past tushish.",
+                "rate": 20.34, "min": 50, "max": 50_000,
+            },
+        ],
+        "💬 Izohlar": [
+            {
+                "service": 30764,
+                "name": "Izohlar",
+                "description": "Post izohlarini oshiradi.",
+                "rate": 5.53, "min": 10, "max": 5_000,
+            },
+        ],
+        "💾 Saqlashlar": [
+            {
+                "service": 30763,
+                "name": "Saqlashlar (Save)",
+                "description": "⚡ Darhol boshlanadi.",
+                "rate": 1.84, "min": 10, "max": 5_000,
+            },
+        ],
+    },
+
+    # ════════════════════════════════════════════════════════
+    "🐦 Twitter / X": {
+        "👁 Ko'rishlar": [
+            {
+                "service": 18322,
+                "name": "Video ko'rishlar — Eng arzon",
+                "description": "⚡ Tez. Eng past narx.",
+                "rate": 0.0046, "min": 100, "max": 100_000_000,
+            },
+            {
+                "service": 15010,
+                "name": "Tweet ko'rishlar — Tez",
+                "description": "⚡ 0–15 daqiqada boshlanadi.",
+                "rate": 0.0133, "min": 100, "max": 5_000_000,
+            },
+            {
+                "service": 29859,
+                "name": "Ko'rishlar + Impression + Refill ♻️",
+                "description": "Ko'rishlar, impressionlar va engagement.\n♻️ Refill kafolatli.",
+                "rate": 0.0047, "min": 100, "max": 2_147_483_647,
+                "refill": True,
+            },
+        ],
+        "❤️ Layklar": [
+            {
+                "service": 2634,
+                "name": "Layklar — Tez",
+                "description": "⚡ Darhol boshlanadi. 3K/soat tezlik.",
+                "rate": 4.2086, "min": 10, "max": 100_000,
+            },
+        ],
+        "👤 Obunachilar": [
+            {
+                "service": 15026,
+                "name": "Obunachilar — Tez",
+                "description": "⚡ 0–15 daqiqada boshlanadi.",
+                "rate": 1.3551, "min": 50, "max": 5_000,
+            },
+            {
+                "service": 15030,
+                "name": "Obunachilar — AQSh",
+                "description": "🇺🇸 AQSh akkauntlari. Sifatli.",
+                "rate": 3.3296, "min": 100, "max": 10_000,
+            },
+        ],
+    },
+
+    # ════════════════════════════════════════════════════════
+    "📌 Pinterest": {
+        "👁 Ko'rishlar": [
+            {
+                "service": 30771,
+                "name": "Ko'rishlar",
+                "description": "⚡ Tez va arzon Pinterest ko'rishlar.",
+                "rate": 1.84, "min": 10, "max": 50_000,
+            },
+        ],
+        "❤️ Layklar": [
+            {
+                "service": 30767,
+                "name": "Layklar",
+                "description": "⚡ Darhol boshlanadi.",
+                "rate": 1.84, "min": 10, "max": 5_000,
+            },
+        ],
+        "👤 Obunachilar": [
+            {
+                "service": 30766,
+                "name": "Obunachilar",
+                "description": "Pinterest profilingizga obunachilar.",
+                "rate": 5.52, "min": 10, "max": 5_000,
+            },
+        ],
+        "🔄 Ulashishlar": [
+            {
+                "service": 30768,
+                "name": "Ulashishlar (Share)",
+                "description": "⚡ Darhol boshlanadi.",
+                "rate": 1.84, "min": 10, "max": 5_000,
+            },
+        ],
+        "💾 Saqlashlar": [
+            {
+                "service": 30769,
+                "name": "Saqlashlar (Save / Pin)",
+                "description": "⚡ Pinlaringizni saqlovchilar.",
+                "rate": 1.84, "min": 10, "max": 5_000,
+            },
+        ],
+        "💬 Izohlar": [
+            {
+                "service": 30770,
+                "name": "Izohlar",
+                "description": "Post izohlarini oshiradi.",
+                "rate": 5.52, "min": 10, "max": 5_000,
+            },
+        ],
+    },
+
+    # ════════════════════════════════════════════════════════
+    # "🎮 O'yinlar": { ...  },  ← kelajak uchun
     # ════════════════════════════════════════════════════════
     # "🎮 O'yinlar": {
     #     "💎 Donatlar": [
