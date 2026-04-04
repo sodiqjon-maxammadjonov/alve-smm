@@ -442,7 +442,8 @@ async def cb_confirm_order(call: CallbackQuery, state: FSMContext, bot: Bot):
         f"💰 To'langan: <b>{total_price:,} so'm</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"⏳ Holat: <b>Kutilmoqda</b>\n"
-        f"📋 'Buyurtmalarim' dan kuzatib boring.",
+        f"📋 'Buyurtmalarim' dan kuzatib boring."
+        f"Buyurtma hizmat turiga qarab 1 daqiqadan bir necha soatgacha bajarilishi mumkin.\n\n",
         reply_markup=back_to_main(),
         parse_mode="HTML",
     )
