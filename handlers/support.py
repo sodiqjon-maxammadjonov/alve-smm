@@ -1,34 +1,58 @@
-from aiogram import Router, F
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from keyboards.menus import back_to_main
+"""
+support.py — Zendor SMM Bot
+Yordam markazi.
+2026 yangi dizayn.
+"""
+
 import os
+from aiogram import Router, F
+from aiogram.types import CallbackQuery, Message
+from aiogram.filters import Command
+
+from keyboards.menus import support_keyboard
 
 router = Router()
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "smo_2811")
 
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "your_admin_username")
 
-def support_keyboard() -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="👨‍💼 Admin bilan bog'lanish", url=f"https://t.me/@smo_2811"))
-    builder.row(InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="main_menu"))
-    return builder.as_markup()
+def _support_text() -> str:
+    return (
+        "🆘 <b>Yordam markazi</b>\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━\n"
+        "❓ <b>Buyurtma qancha vaqtda bajariladi?</b>\n"
+        "➡️ Xizmatga qarab 1 daqiqadan bir necha\n"
+        "    soatgacha\n\n"
+        "❓ <b>Balans qanday to'ldiriladi?</b>\n"
+        "➡️ Kartaga o'tkazma — chek 5 daqiqada\n"
+        "    tasdiqlanadi\n\n"
+        "❓ <b>Buyurtma bajarilmasa pul qaytadimi?</b>\n"
+        "➡️ Ha, bajarilmagan qism balansingizga\n"
+        "    avtomatik qaytariladi\n\n"
+        "❓ <b>Minimal to'ldirish summasi?</b>\n"
+        "➡️ 5,000 so'mdan boshlanadi\n\n"
+        "❓ <b>Refill qanday ishlaydi?</b>\n"
+        "➡️ ♻️ belgili xizmatlar tushib ketsa,\n"
+        "    bepul to'ldiriladi\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━\n"
+        "💬 Boshqa savollar uchun admin bilan\n"
+        "bog'laning 👇"
+    )
+
 
 @router.callback_query(F.data == "support")
 async def cb_support(call: CallbackQuery):
     await call.message.edit_text(
-        "🆘 <b>Yordam</b>\n\n"
-        "Savol yoki muammolaringiz bo'lsa admin bilan bog'laning 👇\n\n"
-        "📌 <b>Ko'p so'raladigan savollar:</b>\n\n"
-        "❓ <b>Buyurtma qancha vaqtda bajariladi?</b>\n"
-        "➡️ Hizmatga qarab 1 daqiqadan bir necha soatgacha\n\n"
-        "❓ <b>Balans qanday to'ldiriladi?</b>\n"
-        "➡️ Kartaga o'tkazma orqali, chek 5 daqiqada tasdiqlanadi\n\n"
-        "❓ <b>Buyurtma bajarilmasa pul qaytadimi?</b>\n"
-        "➡️ Ha, bajarilmagan qismi balansingizga qaytariladi\n\n"
-        "❓ <b>Minimal to'ldirish summasi qancha?</b>\n"
-        "➡️ 5,000 so'mdan boshlanadi",
-        reply_markup=support_keyboard(),
-        parse_mode="HTML"
+        _support_text(),
+        reply_markup=support_keyboard(ADMIN_USERNAME),
+        parse_mode="HTML",
     )
     await call.answer()
+
+
+@router.message(Command("yordam"))
+async def cmd_yordam(message: Message):
+    await message.answer(
+        _support_text(),
+        reply_markup=support_keyboard(ADMIN_USERNAME),
+        parse_mode="HTML",
+    )
