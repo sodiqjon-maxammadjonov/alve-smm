@@ -1,15 +1,12 @@
 """
-support.py — Zendor SMM Bot
-Yordam markazi.
-2026 yangi dizayn.
+handlers/support.py — Zendor SMM Bot
 """
-
 import os
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
 from aiogram.filters import Command
-
 from keyboards.menus import support_keyboard
+from core.constants import DIVIDER
 
 router = Router()
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "smo_2811")
@@ -17,25 +14,20 @@ ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "smo_2811")
 
 def _support_text() -> str:
     return (
-        "🆘 <b>Yordam markazi</b>\n\n"
-        "━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🆘 <b>Yordam markazi</b>\n\n"
+        f"{DIVIDER}\n"
         "❓ <b>Buyurtma qancha vaqtda bajariladi?</b>\n"
-        "➡️ Xizmatga qarab 1 daqiqadan bir necha\n"
-        "    soatgacha\n\n"
+        "➡️ Xizmatga qarab 1 daqiqadan bir necha soatgacha\n\n"
         "❓ <b>Balans qanday to'ldiriladi?</b>\n"
-        "➡️ Kartaga o'tkazma — chek 5 daqiqada\n"
-        "    tasdiqlanadi\n\n"
+        "➡️ Kartaga o'tkazma — chek 5 daqiqada tasdiqlanadi\n\n"
         "❓ <b>Buyurtma bajarilmasa pul qaytadimi?</b>\n"
-        "➡️ Ha, bajarilmagan qism balansingizga\n"
-        "    avtomatik qaytariladi\n\n"
+        "➡️ Ha, bajarilmagan qism balansingizga avtomatik qaytadi\n\n"
         "❓ <b>Minimal to'ldirish summasi?</b>\n"
-        "➡️ 5,000 so'mdan boshlanadi\n\n"
+        "➡️ 5 000 so'mdan boshlanadi\n\n"
         "❓ <b>Refill qanday ishlaydi?</b>\n"
-        "➡️ ♻️ belgili xizmatlar tushib ketsa,\n"
-        "    bepul to'ldiriladi\n\n"
-        "━━━━━━━━━━━━━━━━━━━━━\n"
-        "💬 Boshqa savollar uchun admin bilan\n"
-        "bog'laning 👇"
+        "➡️ ♻️ belgili xizmatlar tushib ketsa, bepul to'ldiriladi\n\n"
+        f"{DIVIDER}\n"
+        "💬 Boshqa savollar uchun admin bilan bog'laning 👇"
     )
 
 

@@ -1,7 +1,6 @@
 """
-balance.py — Zendor SMM Bot
+handlers/balance.py — Zendor SMM Bot
 Balans to'ldirish, depozit tasdiqlash/rad etish.
-2026 yangi dizayn.
 """
 
 import os
@@ -11,21 +10,26 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 from database import (
-    get_balance, create_deposit, confirm_deposit, reject_deposit,
-    get_deposit_status, get_pending_deposits, add_referral_earning,
+    get_balance, create_deposit, confirm_deposit,
+    reject_deposit, get_deposit_status, get_pending_deposits,
+    add_referral_earning,
 )
 from keyboards.menus import (
     admin_deposit_keyboard, confirm_action_keyboard,
     reject_ask_keyboard, cancel_deposit_keyboard,
     admin_contact_keyboard, back_to_main,
 )
-from config import CARD_NUMBER, CARD_OWNER, MIN_DEPOSIT, MAX_DEPOSIT, ADMIN_ID, GROUP_ID
-
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "smo_2811")
-DEPOSIT_BONUS  = int(os.getenv("DEPOSIT_BONUS", "500"))
+from config import (
+    CARD_NUMBER, CARD_OWNER, MIN_DEPOSIT, MAX_DEPOSIT,
+    ADMIN_ID, GROUP_ID, DEPOSIT_BONUS,
+)
+from core.constants import DIVIDER
 
 router = Router()
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "smo_2811")
 
+
+# ── FSM ───────────────────────────────────────────────────────
 
 class DepositState(StatesGroup):
     waiting_amount = State()
@@ -38,35 +42,35 @@ class RejectState(StatesGroup):
 
 # ── Matnlar ───────────────────────────────────────────────────
 
-def _deposit_card_text(amount: int) -> str:
+def _card_text(amount: int) -> str:
     return (
         f"💳 <b>To'lov ma'lumotlari</b>\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f"{DIVIDER}\n"
         f"🏦 Karta raqami:\n"
         f"<code>{CARD_NUMBER}</code>\n\n"
         f"👤 Egasi: <b>{CARD_OWNER}</b>\n"
         f"💰 Summa: <b>{amount:,} so'm</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"📌 <b>Muhim eslatmalar:</b>\n"
-        f"├ Chekdagi summa to'g'ri bo'lishi shart\n"
-        f"├ To'lov 5 daqiqa ichida ko'rib chiqiladi\n"
-        f"└ Faqat UzCard / Humo orqali\n\n"
-        f"📸 <b>To'lovdan so'ng chekni yuboring:</b>"
+        f"{DIVIDER}\n\n"
+        "📌 <b>Muhim eslatmalar:</b>\n"
+        "├ Chekdagi summa to'g'ri bo'lishi shart\n"
+        "├ To'lov 5 daqiqa ichida ko'rib chiqiladi\n"
+        "└ Faqat UzCard / Humo orqali\n\n"
+        "📸 <b>To'lovdan so'ng chekni yuboring:</b>"
     )
 
 
-# ── Foydalanuvchi: balans to'ldirish ─────────────────────────
+# ── Foydalanuvchi: Balans to'ldirish ─────────────────────────
 
 @router.callback_query(F.data == "deposit")
 async def cb_deposit(call: CallbackQuery, state: FSMContext):
     await state.set_state(DepositState.waiting_amount)
     await call.message.edit_text(
         f"➕ <b>Balans to'ldirish</b>\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n"
-        f"To'ldirmoqchi bo'lgan summani kiriting:\n\n"
+        f"{DIVIDER}\n"
+        "To'ldirmoqchi bo'lgan summani kiriting:\n\n"
         f"📌 Minimal: <b>{MIN_DEPOSIT:,} so'm</b>\n"
         f"📌 Maksimal: <b>{MAX_DEPOSIT:,} so'm</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━",
+        f"{DIVIDER}",
         reply_markup=back_to_main(),
         parse_mode="HTML",
     )
@@ -82,16 +86,14 @@ async def process_amount(message: Message, state: FSMContext):
     amount = int(text)
     if not (MIN_DEPOSIT <= amount <= MAX_DEPOSIT):
         await message.answer(
-            f"❌ Summa <b>{MIN_DEPOSIT:,}</b> — <b>{MAX_DEPOSIT:,}</b> so'm\n"
-            f"oralig'ida bo'lishi kerak!",
+            f"❌ Summa <b>{MIN_DEPOSIT:,}</b> — <b>{MAX_DEPOSIT:,}</b> so'm oralig'ida bo'lishi kerak!",
             parse_mode="HTML",
         )
         return
-
     await state.update_data(amount=amount)
     await state.set_state(DepositState.waiting_check)
     await message.answer(
-        _deposit_card_text(amount),
+        _card_text(amount),
         reply_markup=cancel_deposit_keyboard(),
         parse_mode="HTML",
     )
@@ -99,20 +101,20 @@ async def process_amount(message: Message, state: FSMContext):
 
 @router.message(DepositState.waiting_check, F.photo)
 async def process_check(message: Message, state: FSMContext, bot: Bot):
-    data      = await state.get_data()
-    amount    = data.get("amount")
-    file_id   = message.photo[-1].file_id
+    data       = await state.get_data()
+    amount     = data["amount"]
+    file_id    = message.photo[-1].file_id
     deposit_id = await create_deposit(message.from_user.id, amount, file_id)
     await state.clear()
 
     await message.answer(
         f"✅ <b>Chek qabul qilindi!</b>\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n"
-        f"💰 Summa:   <b>{amount:,} so'm</b>\n"
-        f"🔖 ID:      <code>#{deposit_id}</code>\n"
-        f"⏳ Status:  <b>Kutilmoqda</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"✅ 5 daqiqa ichida ko'rib chiqiladi.",
+        f"{DIVIDER}\n"
+        f"💰 Summa:  <b>{amount:,} so'm</b>\n"
+        f"🔖 ID:     <code>#{deposit_id}</code>\n"
+        f"⏳ Status: <b>Kutilmoqda</b>\n"
+        f"{DIVIDER}\n\n"
+        "✅ 5 daqiqa ichida ko'rib chiqiladi.",
         reply_markup=back_to_main(),
         parse_mode="HTML",
     )
@@ -120,42 +122,32 @@ async def process_check(message: Message, state: FSMContext, bot: Bot):
     user    = message.from_user
     caption = (
         f"📥 <b>Yangi depozit so'rovi</b>\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f"{DIVIDER}\n"
         f"👤 <a href='tg://user?id={user.id}'>{user.full_name}</a>\n"
         f"🆔 ID: <code>{user.id}</code>\n"
         f"💰 Summa: <b>{amount:,} so'm</b>\n"
         f"🔖 Deposit ID: <code>#{deposit_id}</code>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━"
+        f"{DIVIDER}"
     )
 
     sent = False
-    if GROUP_ID:
-        try:
-            await bot.send_photo(
-                chat_id=GROUP_ID, photo=file_id, caption=caption,
-                reply_markup=admin_deposit_keyboard(deposit_id),
-                parse_mode="HTML",
-            )
-            sent = True
-        except Exception:
-            pass
-
-    if not sent:
-        try:
-            await bot.send_photo(
-                chat_id=ADMIN_ID, photo=file_id, caption=caption,
-                reply_markup=admin_deposit_keyboard(deposit_id),
-                parse_mode="HTML",
-            )
-        except Exception:
-            pass
+    for chat_id in [GROUP_ID, ADMIN_ID]:
+        if chat_id and not sent:
+            try:
+                await bot.send_photo(
+                    chat_id=chat_id, photo=file_id, caption=caption,
+                    reply_markup=admin_deposit_keyboard(deposit_id),
+                    parse_mode="HTML",
+                )
+                sent = True
+            except Exception:
+                pass
 
 
 @router.message(DepositState.waiting_check)
 async def process_check_wrong(message: Message):
     await message.answer(
-        "📸 Iltimos, chekni <b>rasm sifatida</b> yuboring!\n\n"
-        "Skreenshot olib yuboring.",
+        "📸 Iltimos, chekni <b>rasm sifatida</b> yuboring!\n\nSkreenshot olib yuboring.",
         reply_markup=cancel_deposit_keyboard(),
         parse_mode="HTML",
     )
@@ -172,7 +164,7 @@ async def cb_cancel_deposit(call: CallbackQuery, state: FSMContext):
     await call.answer()
 
 
-# ── Admin: tasdiqlash ─────────────────────────────────────────
+# ── Admin: Tasdiqlash ─────────────────────────────────────────
 
 @router.callback_query(
     F.data.startswith("adm_confirm_") & ~F.data.startswith("adm_confirm_yes_")
@@ -181,13 +173,11 @@ async def admin_confirm_ask(call: CallbackQuery):
     deposit_id = int(call.data.split("_")[2])
     status     = await get_deposit_status(deposit_id)
     if status is None:
-        await call.answer("❌ Deposit topilmadi!", show_alert=True)
-        return
+        await call.answer("❌ Deposit topilmadi!", show_alert=True); return
     if status == "confirmed":
-        await call.answer("ℹ️ Allaqachon tasdiqlangan!", show_alert=True)
-        return
+        await call.answer("ℹ️ Allaqachon tasdiqlangan!", show_alert=True); return
     if status == "rejected":
-        await call.answer("⚠️ Avval rad etilgan!", show_alert=True)
+        await call.answer("⚠️ Avval rad etilgan!", show_alert=True); return
     try:
         await call.message.edit_reply_markup(reply_markup=confirm_action_keyboard(deposit_id))
     except Exception:
@@ -220,10 +210,10 @@ async def admin_confirm_yes(call: CallbackQuery, bot: Bot):
         await bot.send_message(
             user_id,
             f"✅ <b>To'lovingiz tasdiqlandi!</b>\n\n"
-            f"━━━━━━━━━━━━━━━━━━━━━\n"
+            f"{DIVIDER}\n"
             f"💰 <b>+{amount:,} so'm</b> balansingizga tushdi!\n"
-            f"━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"🛍 Endi xizmatlardan foydalanishingiz mumkin!",
+            f"{DIVIDER}\n\n"
+            "🛍 Endi xizmatlardan foydalanishingiz mumkin!",
             reply_markup=back_to_main(), parse_mode="HTML",
         )
     except Exception:
@@ -237,29 +227,17 @@ async def admin_confirm_yes(call: CallbackQuery, bot: Bot):
             await bot.send_message(
                 referrer_id,
                 f"🎉 <b>Referal deposit bonusi!</b>\n\n"
-                f"Do'stingiz balanasini to'ldirdi!\n"
+                f"Do'stingiz balansini to'ldirdi!\n"
                 f"➕ <b>+{DEPOSIT_BONUS:,} so'm</b> balansingizga tushdi!",
                 parse_mode="HTML",
             )
         except Exception:
             pass
 
-    log = (
-        f"✅ Deposit #{deposit_id} tasdiqlandi — {amount:,} so'm | "
-        f"Admin: @{call.from_user.username or call.from_user.id}"
-    )
-    for chat_id in [GROUP_ID, ADMIN_ID]:
-        if chat_id:
-            try:
-                await bot.send_message(chat_id, log)
-                break
-            except Exception:
-                continue
-
     await call.answer("✅ Muvaffaqiyatli tasdiqlandi!")
 
 
-# ── Admin: rad etish ──────────────────────────────────────────
+# ── Admin: Rad etish ──────────────────────────────────────────
 
 @router.callback_query(
     F.data.startswith("adm_reject_") &
@@ -270,19 +248,16 @@ async def admin_reject_ask(call: CallbackQuery):
     deposit_id = int(call.data.split("_")[2])
     status     = await get_deposit_status(deposit_id)
     if status is None:
-        await call.answer("❌ Topilmadi!", show_alert=True)
-        return
+        await call.answer("❌ Topilmadi!", show_alert=True); return
     if status == "rejected":
-        await call.answer("ℹ️ Allaqachon rad etilgan!", show_alert=True)
-        return
+        await call.answer("ℹ️ Allaqachon rad etilgan!", show_alert=True); return
     if status == "confirmed":
-        await call.answer("⚠️ Tasdiqlangan! Rad etib bo'lmaydi.", show_alert=True)
-        return
+        await call.answer("⚠️ Tasdiqlangan — rad etib bo'lmaydi.", show_alert=True); return
     try:
         await call.message.edit_reply_markup(reply_markup=reject_ask_keyboard(deposit_id))
     except Exception:
         pass
-    await call.answer("Rad etish — sabab yozasizmi?")
+    await call.answer()
 
 
 @router.callback_query(F.data.startswith("adm_reject_write_"))
@@ -292,7 +267,7 @@ async def admin_reject_write(call: CallbackQuery, state: FSMContext):
     await state.set_state(RejectState.waiting_reason)
     await call.message.answer(
         f"✏️ Deposit <code>#{deposit_id}</code> uchun rad etish sababini yozing:\n\n"
-        f"<i>(O'tkazib yuborish: /skip)</i>",
+        "<i>O'tkazib yuborish uchun: /skip</i>",
         parse_mode="HTML",
     )
     await call.answer()
@@ -305,7 +280,10 @@ async def process_reject_reason(message: Message, state: FSMContext, bot: Bot):
     reason     = None if message.text == "/skip" else message.text.strip()
     await state.clear()
     await _do_reject(bot, deposit_id, reason, message.from_user)
-    await message.answer(f"❌ Deposit <code>#{deposit_id}</code> rad etildi.", parse_mode="HTML")
+    await message.answer(
+        f"❌ Deposit <code>#{deposit_id}</code> rad etildi.",
+        parse_mode="HTML",
+    )
 
 
 @router.callback_query(F.data.startswith("adm_reject_yes_"))
@@ -326,7 +304,7 @@ async def admin_reject_yes(call: CallbackQuery, bot: Bot):
     await call.answer("❌ Rad etildi!")
 
 
-async def _do_reject(bot: Bot, deposit_id: int, reason: str | None, admin_user):
+async def _do_reject(bot: Bot, deposit_id: int, reason: str | None, admin_user) -> None:
     user_id = await reject_deposit(deposit_id, reason)
     if not user_id:
         return
@@ -336,25 +314,12 @@ async def _do_reject(bot: Bot, deposit_id: int, reason: str | None, admin_user):
         await bot.send_message(
             user_id,
             f"❌ <b>To'lovingiz rad etildi.</b>{reason_line}\n\n"
-            f"Muammo bo'lsa admin bilan bog'laning 👇",
+            "Muammo bo'lsa admin bilan bog'laning 👇",
             reply_markup=admin_contact_keyboard(ADMIN_USERNAME),
             parse_mode="HTML",
         )
     except Exception:
         pass
-
-    log = (
-        f"❌ Deposit #{deposit_id} rad etildi"
-        + (f" | Sabab: {reason}" if reason else "")
-        + f" | Admin: @{admin_user.username or admin_user.id}"
-    )
-    for chat_id in [GROUP_ID, ADMIN_ID]:
-        if chat_id:
-            try:
-                await bot.send_message(chat_id, log)
-                break
-            except Exception:
-                continue
 
 
 @router.callback_query(F.data.startswith("adm_back_"))

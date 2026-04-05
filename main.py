@@ -1,70 +1,89 @@
+"""
+main.py — Zendor SMM Bot
+Bot entry point. Barcha routerlar shu yerda ro'yxatga olinadi.
+
+YANGI HANDLER QO'SHISH:
+  1. handlers/ papkasiga yangi fayl oching
+  2. Router yarating: router = Router()
+  3. Quyida import qiling va dp.include_router() ga qo'shing
+"""
+
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeChat
-from config import BOT_TOKEN, ADMIN_ID
+
+from config import BOT_TOKEN, ADMIN_IDS, ADMIN_ID
 from database import init_db
-from handlers import start, balance, services, orders, support, group, referral, broadcast, admin
+
+# Handler importlari
+from handlers import (
+    start, balance, services, orders,
+    support, group, broadcast, admin,
+)
 from handlers.orders import auto_update_orders
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+logger = logging.getLogger(__name__)
 
 
-async def set_bot_commands(bot: Bot):
-    user_commands = [
-        BotCommand(command="start",       description="Botni ishga tushirish"),
-        BotCommand(command="commandlist", description="Komandalar ro'yxati"),
-        BotCommand(command="balans",      description="Balansni ko'rish"),
-        BotCommand(command="xizmatlar",   description="Xizmatlar ro'yxati"),
-        BotCommand(command="buyurtmalar", description="Buyurtmalarim"),
-        BotCommand(command="referral",    description="Referal dasturi"),
-        BotCommand(command="yordam",      description="Yordam"),
-    ]
-    await bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
+# ── Bot komandalar ro'yxati ───────────────────────────────────
 
-    admin_commands = user_commands + [
-        BotCommand(command="admin",         description="Admin panel"),
-        BotCommand(command="stats",         description="Statistika"),
-        BotCommand(command="users",         description="Foydalanuvchilar"),
-        BotCommand(command="pending",       description="Kutayotgan depozitlar"),
-        BotCommand(command="top",           description="Top 10 mijozlar"),
-        BotCommand(command="broadcast",     description="Hammaga xabar"),
-        BotCommand(command="balance_check", description="Balans tekshirish"),
-        BotCommand(command="add_balance",   description="Balans qo'shish"),
-    ]
-    try:
-        await bot.set_my_commands(
-            admin_commands,
-            scope=BotCommandScopeChat(chat_id=ADMIN_ID)
-        )
-    except Exception as e:
-        logging.warning(f"Admin commands set failed: {e}")
+USER_COMMANDS = [
+    BotCommand(command="start",       description="🚀 Botni ishga tushirish"),
+    BotCommand(command="commandlist", description="📋 Barcha komandalar"),
+    BotCommand(command="balans",      description="💰 Balansingiz"),
+    BotCommand(command="xizmatlar",   description="🛍 Xizmatlar"),
+    BotCommand(command="buyurtmalar", description="📦 Buyurtmalarim"),
+    BotCommand(command="referral",    description="🎁 Referal dasturi"),
+    BotCommand(command="yordam",      description="🆘 Yordam"),
+]
 
-
-async def referral_signup_notifier(bot: Bot):
-    """
-    Yangi foydalanuvchi referal orqali ro'yxatdan o'tganda referal egasiga xabar yuboradi.
-    Bu task start.py dagi get_or_create_user dan keyin ishga tushadi.
-    Aslida bu xabar services.py dagi birinchi buyurtmada (bonus) yuboriladi,
-    lekin ro'yxatdan o'tganda ham egasiga ma'lum qilish uchun shu task bor.
-    Hozircha bu task bo'sh — kengaytirish mumkin.
-    """
-    pass
+ADMIN_COMMANDS = USER_COMMANDS + [
+    BotCommand(command="admin",        description="🛠 Admin panel"),
+    BotCommand(command="stats",        description="📊 Statistika"),
+    BotCommand(command="userinfo",     description="👤 User ma'lumoti"),
+    BotCommand(command="userorders",   description="📦 User buyurtmalari"),
+    BotCommand(command="userstats",    description="📊 User statistikasi"),
+    BotCommand(command="add_balance",  description="➕ Balans qo'shish"),
+    BotCommand(command="set_balance",  description="🔧 Balans o'rnatish"),
+    BotCommand(command="discount",     description="🏷 Chegirma o'rnatish"),
+    BotCommand(command="ban",          description="⛔ Bloklash"),
+    BotCommand(command="unban",        description="✅ Blokni ochish"),
+    BotCommand(command="pending",      description="⏳ Kutayotgan depozitlar"),
+    BotCommand(command="top",          description="🏆 Top 10 mijozlar"),
+    BotCommand(command="smm_balance",  description="💵 SMM panel balansi"),
+    BotCommand(command="broadcast",    description="📢 Broadcast"),
+    BotCommand(command="groupid",      description="🆔 Guruh ID"),
+]
 
 
-async def main():
+async def set_bot_commands(bot: Bot) -> None:
+    await bot.set_my_commands(USER_COMMANDS, scope=BotCommandScopeDefault())
+    for admin_id in ADMIN_IDS:
+        try:
+            await bot.set_my_commands(
+                ADMIN_COMMANDS, scope=BotCommandScopeChat(chat_id=admin_id)
+            )
+        except Exception as e:
+            logger.warning(f"Admin commands set failed for {admin_id}: {e}")
+
+
+# ── Asosiy funksiya ───────────────────────────────────────────
+
+async def main() -> None:
     await init_db()
 
     bot = Bot(token=BOT_TOKEN)
-    dp = Dispatcher(storage=MemoryStorage())
+    dp  = Dispatcher(storage=MemoryStorage())
 
     await set_bot_commands(bot)
 
-    # Router tartibi muhim — admin eng birinchi
+    # Router tartibi muhim — admin birinchi bo'lishi kerak
     dp.include_router(admin.router)
     dp.include_router(start.router)
     dp.include_router(balance.router)
@@ -72,13 +91,12 @@ async def main():
     dp.include_router(orders.router)
     dp.include_router(support.router)
     dp.include_router(group.router)
-    dp.include_router(referral.router)
     dp.include_router(broadcast.router)
 
-    # Har 5 daqiqada order statuslarini yangilaydi
+    # Background task — har 5 daqiqada order statuslarini yangilaydi
     asyncio.create_task(auto_update_orders(bot))
 
-    logging.info("Bot ishga tushdi!")
+    logger.info("✅ Zendor SMM Bot ishga tushdi!")
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 
 
