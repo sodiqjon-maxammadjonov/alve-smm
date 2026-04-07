@@ -5,56 +5,95 @@ Pinterest platformasining xizmatlari.
 
 PINTEREST_SERVICES: dict[str, list[dict]] = {
 
+    # ────────────────────────────────────────────────────────────
+    # 👁 KO'RISHLAR
+    # ────────────────────────────────────────────────────────────
     "👁 Ko'rishlar": [
         {
             "service": 30771,
-            "name": "Ko'rishlar ⚠️",
-            "description": "⚡ Tez va arzon Pinterest ko'rishlar.\n⚠️ Kafolat yo'q.",
+            "name": "Ko'rishlar ⚡",
+            "description": (
+                "Pinterest pinlaringizga ko'rishlar.\n"
+                "Tez va arzon.\n"
+                "⚠️ Kafolatsiz variant."
+            ),
             "rate": 1.84, "min": 10, "max": 50_000,
         },
     ],
 
+    # ────────────────────────────────────────────────────────────
+    # ❤️ LAYKLAR
+    # ────────────────────────────────────────────────────────────
     "❤️ Layklar": [
         {
             "service": 30767,
-            "name": "Layklar ⚠️",
-            "description": "⚡ Darhol boshlanadi.\n⚠️ Kafolat yo'q.",
+            "name": "Layklar ⚡",
+            "description": (
+                "Pinterest pinlaringizga layklar.\n"
+                "Darhol boshlanadi.\n"
+                "⚠️ Kafolatsiz variant."
+            ),
             "rate": 1.84, "min": 10, "max": 5_000,
         },
     ],
 
+    # ────────────────────────────────────────────────────────────
+    # 👤 OBUNACHILAR
+    # ────────────────────────────────────────────────────────────
     "👤 Obunachilar": [
         {
             "service": 30766,
-            "name": "Obunachilar ⚠️",
-            "description": "Pinterest profilingizga obunachilar.\n⚠️ Kafolat yo'q.",
+            "name": "Obunachilar ⚡",
+            "description": (
+                "Pinterest profilingizga obunachilar.\n"
+                "⚠️ Kafolatsiz variant."
+            ),
             "rate": 5.52, "min": 10, "max": 5_000,
         },
     ],
 
+    # ────────────────────────────────────────────────────────────
+    # 🔄 ULASHISHLAR
+    # ────────────────────────────────────────────────────────────
     "🔄 Ulashishlar": [
         {
             "service": 30768,
-            "name": "Ulashishlar (Share) ⚠️",
-            "description": "⚡ Darhol boshlanadi.\n⚠️ Kafolat yo'q.",
+            "name": "Ulashishlar ⚡",
+            "description": (
+                "Pinterest pinlaringiz ulashish soni oshadi.\n"
+                "Darhol boshlanadi.\n"
+                "⚠️ Kafolatsiz variant."
+            ),
             "rate": 1.84, "min": 10, "max": 5_000,
         },
     ],
 
+    # ────────────────────────────────────────────────────────────
+    # 💾 SAQLASHLAR
+    # ────────────────────────────────────────────────────────────
     "💾 Saqlashlar": [
         {
             "service": 30769,
-            "name": "Saqlashlar (Save / Pin) ⚠️",
-            "description": "⚡ Pinlaringizni saqlovchilar.\n⚠️ Kafolat yo'q.",
+            "name": "Saqlashlar (Pin) ⚡",
+            "description": (
+                "Pinterest pinlaringizni saqlovchilar soni oshadi.\n"
+                "⚠️ Kafolatsiz variant."
+            ),
             "rate": 1.84, "min": 10, "max": 5_000,
         },
     ],
 
+    # ────────────────────────────────────────────────────────────
+    # 💬 IZOHLAR
+    # ────────────────────────────────────────────────────────────
     "💬 Izohlar": [
         {
             "service": 30770,
-            "name": "Izohlar ⚠️",
-            "description": "Post izohlarini oshiradi.\n⚠️ Kafolat yo'q.",
+            "name": "Izohlar ⚡",
+            "description": (
+                "Pinterest postlaringizga izohlar.\n"
+                "⚠️ Kafolatsiz variant."
+            ),
             "rate": 5.52, "min": 10, "max": 5_000,
         },
     ],
