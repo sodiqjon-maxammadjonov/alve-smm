@@ -31,28 +31,79 @@ ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "smo_2811")
 # ── FSM holatlari ─────────────────────────────────────────────
 
 class OrderState(StatesGroup):
-    waiting_quantity = State()  # 1. Miqdor
-    waiting_link     = State()  # 2. Link
-    waiting_comments = State()  # 3. Custom Comments (ixtiyoriy)
+    waiting_quantity = State()
+    waiting_link     = State()
+    waiting_comments = State()
 
 
-# ── Yordamchi matnlar ─────────────────────────────────────────
+# ── Yordamchi funksiyalar ─────────────────────────────────────
+
+def _kafolat_info(svc: dict) -> str:
+    """Kafolat holati haqida tushunarli matn."""
+    name_lower = (svc.get("name", "") + svc.get("description", "")).lower()
+    # Ko'rishlar, saqlashlar, ulashishlar tushib ketmaydi — boshqa xabar
+    is_view_type = any(w in name_lower for w in [
+        "ko'rish", "korish", "view", "saqlash", "ulashish", "share", "save",
+        "impression", "reach",
+    ])
+    # Akkaunt xizmatlari uchun alohida
+    is_account = svc.get("link_override", {}).get("validate") == "email"
+
+    if is_account:
+        return (
+            "✅ <b>Akkaunt xizmati</b>\n"
+            "Email manzilingizga tayyor akkaunt yetkaziladi.\n"
+            "Ishlamasa — bepul almashtiradi."
+        )
+    if svc.get("refill"):
+        return (
+            "♻️ <b>Kafolatli xizmat</b>\n"
+            "Agar soni tushib ketsa — biz bepul to'ldirib beramiz."
+        )
+    if is_view_type:
+        return (
+            "ℹ️ <b>Ko'rishlar haqida</b>\n"
+            "Ko'rishlar (views) bir marta qo'shiladi va <b>tushib ketmaydi</b>.\n"
+            "Kafolat shart emas — natija doimiy."
+        )
+    return (
+        "⚠️ <b>Kafolatsiz xizmat</b>\n"
+        "Narxi arzon. Vaqt o'tishi bilan <b>faqat obunachilar</b> biroz kamayishi mumkin —\n"
+        "bu Instagram/TikTok bot akkauntlarni o'chirganda sodir bo'ladi.\n"
+        "Ko'rishlar, layklar, saqlashlar — tushib ketmaydi."
+    )
+
 
 def _service_detail_text(svc: dict, markup: float, discount: float = 0) -> str:
-    p1000   = price_per_1000_uzs(svc["rate"], markup)
-    refill  = "\n♻️ <b>Refill kafolatli</b>" if svc.get("refill") else ""
-    disc_ln = f"\n🏷 Sizning chegirmangiz: <b>{discount:+.0f}%</b>" if discount != 0 else ""
+    disc_ln  = f"\n🏷 Sizning chegirmangiz: <b>{discount:+.0f}%</b>" if discount != 0 else ""
+    kafolat  = _kafolat_info(svc)
+    desc     = svc.get("description", "—")
+
+    # Akkaunt xizmatlari: 1 ta uchun narx
+    is_account = svc.get("link_override", {}).get("validate") == "email"
+    is_package = svc.get("type") == "Package"
+    if is_account or is_package:
+        price_uzs = round(float(svc["rate"]) * 12500 * (1 + markup / 100))
+        price_line = f"💰 <b>Narx:</b>    {price_uzs:,} so'm / 1 ta{disc_ln}"
+        qty_line   = f"📊 <b>Miqdor:</b>  {svc['min']:,} — {svc['max']:,} ta\n"
+        prompt = "✏️ <b>Nechta kerak?</b>\n<i>Quyida raqam yozing:</i>"
+    else:
+        p1000      = price_per_1000_uzs(svc["rate"], markup)
+        price_line = f"💰 <b>Narx:</b>    {p1000:,} so'm / 1 000 ta{disc_ln}"
+        qty_line   = f"📊 <b>Miqdor:</b>  {svc['min']:,} — {svc['max']:,} ta\n"
+        prompt = "✏️ <b>Nechta buyurtma bermoqchisiz?</b>\n<i>Quyida raqam yozing:</i>"
+
     return (
-        f"{DIVIDER}\n"
-        f"📌 <b>{svc['name']}</b>{refill}\n"
-        f"{DIVIDER}\n\n"
-        f"📝 {svc.get('description', '—')}\n\n"
-        f"📊 <b>Miqdor chegarasi:</b>\n"
-        f"├ Minimal: <b>{svc['min']:,}</b>\n"
-        f"└ Maksimal: <b>{svc['max']:,}</b>\n\n"
-        f"💰 <b>Narx:</b> {p1000:,} so'm / 1 000 ta{disc_ln}\n\n"
-        f"✏️ <b>Nechta buyurtma bermoqchisiz?</b>\n"
-        "<i>Quyida raqam yozing:</i>"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"📌 <b>{svc['name']}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"📝 {desc}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"{kafolat}\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{qty_line}"
+        f"{price_line}\n\n"
+        f"{prompt}"
     )
 
 
@@ -87,20 +138,21 @@ def _order_summary_text(
     disc_ln    = f"\n🏷 Chegirma:  <b>{discount:+.0f}%</b>" if discount != 0 else ""
     comment_ln = f"\n✏️ Izohlar:   <b>{len(comments.splitlines())} ta</b>" if comments else ""
     status_ln  = (
-        "✅ <b>Balansingiz yetarli</b>"
+        "✅ <b>Balansingiz yetarli — buyurtma berishingiz mumkin!</b>"
         if enough else
         f"❌ <b>Balans yetarli emas!</b>\n"
-        f"   Kerak: {total_price:,}  |  Bor: {balance:,} so'm"
+        f"   Kerak: <b>{total_price:,}</b>  |  Bor: <b>{balance:,}</b> so'm\n"
+        f"   Balansni to'ldiring va qaytib keling."
     )
     return (
         f"📦 <b>Buyurtma tafsilotlari</b>\n\n"
-        f"{DIVIDER}\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🏷 Xizmat:   <b>{service_name}</b>\n"
         f"🔢 Miqdor:   <b>{quantity:,}</b>\n"
         f"🔗 Link:     <code>{link}</code>{comment_ln}\n"
         f"💰 Narx:     <b>{total_price:,} so'm</b>{disc_ln}\n"
         f"💳 Balans:   <b>{balance:,} so'm</b>\n"
-        f"{DIVIDER}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
         f"{status_ln}"
     )
 
@@ -115,7 +167,11 @@ async def cb_coming_soon(call: CallbackQuery):
 @router.callback_query(F.data == "services")
 async def cb_services(call: CallbackQuery):
     await call.message.edit_text(
-        f"🛍 <b>Xizmatlar</b>\n\n{DIVIDER}\nPlatformani tanlang 👇",
+        f"🛍 <b>Xizmatlar</b>\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"Platformani tanlang 👇\n\n"
+        f"♻️ = Kafolatli xizmat (tushsa to'ldiriladi)\n"
+        f"⚡ = Arzon, kafolatsiz variant",
         reply_markup=platforms_keyboard(get_platform_names()),
         parse_mode="HTML",
     )
@@ -129,7 +185,9 @@ async def cb_platform(call: CallbackQuery):
         await call.answer("🔜 Tez orada qo'shiladi!", show_alert=True)
         return
     await call.message.edit_text(
-        f"🛍 <b>{platform}</b>\n\n{DIVIDER}\nBo'limni tanlang 👇",
+        f"🛍 <b>{platform}</b>\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"Bo'limni tanlang 👇",
         reply_markup=sections_keyboard(platform, get_section_names(platform)),
         parse_mode="HTML",
     )
@@ -147,9 +205,10 @@ async def cb_section(call: CallbackQuery):
         return
     await call.message.edit_text(
         f"🛍 <b>{platform}  ›  {section}</b>\n\n"
-        f"{DIVIDER}\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
         "Xizmatni tanlang 👇\n"
-        "<i>(Narxlar har 1 000 ta uchun)</i>",
+        # "<i>Narxlar 1 000 ta uchun ko'rsatilgan</i>\n"
+        "<i>♻️ = kafolatli xizmat</i>",
         reply_markup=services_list_keyboard(
             platform, section, services, price_per_1000_uzs, get_markup
         ),
@@ -174,7 +233,6 @@ async def cb_service_detail(call: CallbackQuery, state: FSMContext):
     discount = await get_user_discount(call.from_user.id)
     markup   = get_markup(svc)
 
-    # Chegirma bo'lsa — markup ni moslashtir
     if discount != 0:
         cost     = cost_price_uzs_per_item(svc["rate"]) * 1000
         base     = price_per_1000_uzs(svc["rate"], markup)
@@ -347,7 +405,6 @@ async def cb_confirm_order(call: CallbackQuery, state: FSMContext, bot: Bot):
     smm_order_id = result.get("order")
 
     if not smm_order_id:
-        # Pul qaytarish
         await deduct_balance(call.from_user.id, -total_price)
         await call.message.edit_text(
             f"❌ <b>Buyurtma berishda xatolik!</b>\n\n"
@@ -365,7 +422,6 @@ async def cb_confirm_order(call: CallbackQuery, state: FSMContext, bot: Bot):
         service_name, platform, link, quantity, total_price,
     )
 
-    # Referal foiz hisoblash
     from database import get_referrer, add_referral_earning
     from config import REFERRAL_PERCENT
     referrer_id = await get_referrer(call.from_user.id)
@@ -390,12 +446,12 @@ async def cb_confirm_order(call: CallbackQuery, state: FSMContext, bot: Bot):
     await state.clear()
     await call.message.edit_text(
         f"✅ <b>Buyurtma qabul qilindi!</b>\n\n"
-        f"{DIVIDER}\n"
-        f"🔖 ID:        <code>#{smm_order_id}</code>\n"
-        f"🏷 Xizmat:    <b>{service_name}</b>\n"
-        f"🔢 Miqdor:    <b>{quantity:,}</b>\n"
-        f"💰 To'langan: <b>{total_price:,} so'm</b>\n"
-        f"{DIVIDER}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🔖 Buyurtma ID:   <code>#{smm_order_id}</code>\n"
+        f"🏷 Xizmat:        <b>{service_name}</b>\n"
+        f"🔢 Miqdor:        <b>{quantity:,}</b>\n"
+        f"💰 To'langan:     <b>{total_price:,} so'm</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
         "⏳ Holat: <b>Kutilmoqda</b>\n"
         "📋 <b>Buyurtmalarim</b> bo'limida kuzatib boring.\n"
         "<i>Bajarish vaqti xizmat turiga qarab 1 daqiqadan bir necha soatgacha.</i>",
@@ -444,11 +500,11 @@ async def cb_retry_order(call: CallbackQuery, state: FSMContext):
 
     await call.message.edit_text(
         f"🔄 <b>Qayta buyurtma</b>\n\n"
-        f"{DIVIDER}\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🏷 Xizmat:   <b>{svc['name']}</b>\n"
         f"🔢 Miqdor:   <b>{quantity:,}</b>\n"
         f"💰 Narx:     <b>{total_price:,} so'm</b>\n"
-        f"{DIVIDER}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
         + _link_prompt_text(platform, section, svc.get("link_override")),
         reply_markup=back_to_main(),
         parse_mode="HTML",

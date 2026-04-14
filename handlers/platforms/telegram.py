@@ -11,35 +11,36 @@ TELEGRAM_SERVICES: dict[str, list[dict]] = {
     "👁 Ko'rishlar": [
         {
             "service": 15982,
-            "name": "Ko'rishlar — Arzon ⚡",
+            "name": "⚡ Arzon ko'rishlar — darhol",
             "description": (
-                "1 ta postga ko'rishlar qo'shiladi.\n"
-                "Juda tez — kuniga 1 milliongacha.\n"
-                "⚠️ Kafolatsiz, tushib ketishi mumkin."
+                "1 ta postingizga ko'rishlar qo'shiladi.\n"
+                "Darhol boshlanadi — kuniga 1 000 000 gacha.\n"
+                "💡 Arzon narx = bot ko'rishlar ishlatiladi.\n"
+                # "⚠️ Kafolatsiz: vaqt o'tishi bilan biroz kamayishi mumkin."
             ),
             "rate": 0.0023, "min": 10, "max": 1_000_000,
         },
         {
             "service": 16926,
-            "name": "Ko'rishlar — Barqaror ✅",
+            "name": "✅ Barqaror ko'rishlar ",
             "description": (
-                "1 ta postga ko'rishlar qo'shiladi.\n"
-                "Barqaror — tushib ketmaydi.\n"
-                "✅ Ishonchli va sifatli variant."
+                "1 ta postingizga ko'rishlar qo'shiladi.\n"
+                "Sifatli manbalardan — uzoq vaqt saqlanadi.\n"
+                "✅ Ishonchli va barqaror variant. Maks: 100 000 000 ta."
             ),
             "rate": 0.0074, "min": 50, "max": 100_000_000,
         },
         {
             "service": 15448,
-            "name": "Ko'rishlar — So'nggi 5 post 🔥",
+            "name": "🔥 So'nggi 5 postga bir vaqtda",
             "description": (
                 "Kanalingizdagi oxirgi 5 ta postga\n"
                 "bir vaqtning o'zida ko'rishlar qo'shiladi.\n"
-                "✅ Tushib ketmaydi, barqaror."
+                "✅ Barqaror, tushib ketmaydi. Maks: 50 000 000 ta."
             ),
             "rate": 0.0429, "min": 50, "max": 50_000_000,
             "link_override": {
-                "prompt": "📨 Kanal linkini yuboring:",
+                "prompt": "📨 Kanal linkini yuboring (post emas, kanal):",
                 "hint": "Kanal linki yoki username",
                 "example": "https://t.me/kanalingiz  yoki  @kanalingiz",
                 "validate": "telegram_channel",
@@ -47,11 +48,11 @@ TELEGRAM_SERVICES: dict[str, list[dict]] = {
         },
         {
             "service": 28478,
-            "name": "Ko'rishlar — Premium akkauntlar 💎",
+            "name": "💎 Premium akkauntlardan ko'rishlar",
             "description": (
-                "Faqat Telegram Premium obunachili\n"
+                "Faqat Telegram Premium obunali\n"
                 "haqiqiy akkauntlardan ko'rishlar keladi.\n"
-                "💎 Eng yuqori sifat va ishonchlilik."
+                "💎 Eng yuqori sifat. Maks: 150 000 ta."
             ),
             "rate": 0.0911, "min": 10, "max": 150_000,
         },
@@ -63,50 +64,54 @@ TELEGRAM_SERVICES: dict[str, list[dict]] = {
     "😍 Reaksiyalar": [
         {
             "service": 18339,
-            "name": "Aralash reaksiyalar — Arzon ⚡",
+            "name": "⚡ Aralash reaksiyalar — arzon",
             "description": (
-                "👍❤️🔥🎉🤩😁 — avtomatik aralash reaksiyalar.\n"
-                "Tez va arzon variant.\n"
-                "⚠️ Kafolatsiz."
+                "👍❤️🔥🎉🤩😁 — avtomatik aralash reaksiyalar qo'shiladi.\n"
+                "Darhol boshlanadi, juda tez.\n"
+                "⚠️ Kafolatsiz variant. Maks: 10 000 000 ta."
             ),
             "rate": 0.0226, "min": 10, "max": 10_000_000,
         },
         {
             "service": 23335,
-            "name": "👍 Like reaksiya — Umrbod ♻️",
+            "name": "👍 Faqat LIKE — umrbod kafolat ♻️",
             "description": (
                 "Postingizga faqat 👍 reaksiya qo'shiladi.\n"
-                "✅ Umrbod saqlanadi, hech qachon tushib ketmaydi."
+                "✅ Umrbod saqlanadi — hech qachon tushib ketmaydi.\n"
+                "Maks: 1 000 000 ta."
             ),
             "rate": 0.0294, "min": 10, "max": 1_000_000,
             "refill": True,
         },
         {
             "service": 23338,
-            "name": "❤️ Yurak reaksiya — Umrbod ♻️",
+            "name": "❤️ Faqat YURAK — umrbod kafolat ♻️",
             "description": (
                 "Postingizga faqat ❤️ reaksiya qo'shiladi.\n"
-                "✅ Umrbod saqlanadi, hech qachon tushib ketmaydi."
+                "✅ Umrbod saqlanadi — hech qachon tushib ketmaydi.\n"
+                "Maks: 1 000 000 ta."
             ),
             "rate": 0.0294, "min": 10, "max": 1_000_000,
             "refill": True,
         },
         {
             "service": 23339,
-            "name": "🔥 Olov reaksiya — Umrbod ♻️",
+            "name": "🔥 Faqat OLOV — umrbod kafolat ♻️",
             "description": (
                 "Postingizga faqat 🔥 reaksiya qo'shiladi.\n"
-                "✅ Umrbod saqlanadi, hech qachon tushib ketmaydi."
+                "✅ Umrbod saqlanadi — hech qachon tushib ketmaydi.\n"
+                "Maks: 1 000 000 ta."
             ),
             "rate": 0.0294, "min": 10, "max": 1_000_000,
             "refill": True,
         },
         {
             "service": 23345,
-            "name": "🎉 Bayram reaksiya — Umrbod ♻️",
+            "name": "🎉 Faqat BAYRAM — umrbod kafolat ♻️",
             "description": (
                 "Postingizga faqat 🎉 reaksiya qo'shiladi.\n"
-                "✅ Umrbod saqlanadi, hech qachon tushib ketmaydi."
+                "✅ Umrbod saqlanadi — hech qachon tushib ketmaydi.\n"
+                "Maks: 1 000 000 ta."
             ),
             "rate": 0.0294, "min": 10, "max": 1_000_000,
             "refill": True,
@@ -119,40 +124,44 @@ TELEGRAM_SERVICES: dict[str, list[dict]] = {
     "👥 Obunachilar": [
         {
             "service": 29540,
-            "name": "Obunachilar — Arzon ⚡",
+            "name": "⚡ Arzon obunachilar — tez",
             "description": (
                 "Real ko'rinishdagi akkauntlar tez qo'shiladi.\n"
-                "⚠️ Kafolatsiz — vaqt o'tishi bilan biroz tushishi mumkin."
+                "💡 Arzon narx bo'lgani uchun bir qismi keyinchalik tushishi mumkin.\n"
+                "⚠️ Kafolatsiz — pul qaytarilmaydi, lekin juda katta\n"
+                "   kamayish bo'lsa admin bilan bog'laning."
             ),
             "rate": 0.339, "min": 10, "max": 1_000_000,
         },
         {
             "service": 29541,
-            "name": "Obunachilar — 30 kunlik kafolat ✅",
+            "name": "♻️ Obunachilar + 30 kun kafolat",
             "description": (
                 "Real ko'rinishdagi akkauntlar qo'shiladi.\n"
-                "✅ 30 kun ichida tushib ketsa, bepul to'ldiriladi."
+                "✅ 30 kun ichida tushib ketsa — bepul to'ldirib beriladi.\n"
+                "Maks: 1 000 000 ta."
             ),
             "rate": 0.3503, "min": 10, "max": 1_000_000,
             "refill": True,
         },
         {
             "service": 29545,
-            "name": "Obunachilar — 1 yillik kafolat 🛡",
+            "name": "🛡 Obunachilar + 1 yil kafolat",
             "description": (
                 "Real ko'rinishdagi akkauntlar qo'shiladi.\n"
-                "🛡 1 yil davomida tushib ketsa, bepul to'ldiriladi."
+                "🛡 Butun 1 yil davomida tushsa — bepul to'ldirib beriladi.\n"
+                "Maks: 1 000 000 ta."
             ),
             "rate": 0.5311, "min": 10, "max": 1_000_000,
             "refill": True,
         },
         {
             "service": 29546,
-            "name": "Obunachilar — Umrbod kafolat ⭐",
+            "name": "⭐ Obunachilar — UMRBOD kafolat",
             "description": (
                 "Real ko'rinishdagi akkauntlar qo'shiladi.\n"
                 "⭐ Umrbod kafolat — hech qachon tushib ketmaydi.\n"
-                "Eng ishonchli va uzoq muddatli variant."
+                "Eng ishonchli va uzoq muddatli variant. Maks: 1 000 000 ta."
             ),
             "rate": 0.5763, "min": 10, "max": 1_000_000,
             "refill": True,
@@ -162,34 +171,35 @@ TELEGRAM_SERVICES: dict[str, list[dict]] = {
     # ────────────────────────────────────────────────────────────
     # 💎 PREMIUM A'ZOLAR
     # ────────────────────────────────────────────────────────────
-    "💎 Premium A'zolar": [
+    "💎 Premium a'zolar": [
         {
             "service": 29989,
-            "name": "Premium a'zolar — 7 kunlik kafolat",
+            "name": "💎 Premium a'zolar — 7 kun kafolat",
             "description": (
-                "Telegram Premium obunali haqiqiy akkauntlar.\n"
-                "Kanalingizga obunachi bo'ladi.\n"
-                "✅ 7 kun tushib ketmaydi."
+                "Telegram Premium obunali haqiqiy akkauntlar\n"
+                "kanalingizga obunachi bo'ladi.\n"
+                "✅ 7 kun ichida tushsa — almashtiradi. Maks: 50 000 ta."
             ),
             "rate": 3.3335, "min": 10, "max": 50_000,
         },
         {
             "service": 29991,
-            "name": "Premium a'zolar — 15 kunlik kafolat ✅",
+            "name": "💎 Premium a'zolar — 15 kun kafolat",
             "description": (
-                "Telegram Premium obunali haqiqiy akkauntlar.\n"
-                "Kanalingizga obunachi bo'ladi.\n"
-                "✅ 15 kun tushib ketmaydi."
+                "Telegram Premium obunali haqiqiy akkauntlar\n"
+                "kanalingizga obunachi bo'ladi.\n"
+                "✅ 15 kun ichida tushsa — almashtiradi. Maks: 50 000 ta."
             ),
             "rate": 5.876, "min": 10, "max": 50_000,
         },
         {
             "service": 29994,
-            "name": "Premium a'zolar — 30 kunlik kafolat 🔥",
+            "name": "💎 Premium a'zolar — 30 kun kafolat 🔥",
             "description": (
-                "Telegram Premium obunali haqiqiy akkauntlar.\n"
-                "Kanalingizga obunachi bo'ladi.\n"
-                "🔥 30 kun tushib ketmaydi — eng mashhur variant."
+                "Telegram Premium obunali haqiqiy akkauntlar\n"
+                "kanalingizga obunachi bo'ladi.\n"
+                "🔥 30 kun ichida tushsa — almashtiradi.\n"
+                "Eng mashhur premium variant. Maks: 50 000 ta."
             ),
             "rate": 10.1135, "min": 10, "max": 50_000,
         },

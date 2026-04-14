@@ -3,8 +3,12 @@ keyboards/menus.py — Zendor SMM Bot
 Barcha klaviaturalar bir joyda.
 
 YANGI TUGMA QO'SHISH:
-  Tegishli funksiyaga InlineKeyboardButton qo'shing.
-  Yangi klaviatura kerak bo'lsa — yangi funksiya oching.
+  Tegishli funksiyaga _btn() orqali qo'shing.
+
+ESLATMA — Rangli tugmalar (Bot API 9.4+):
+  Telegram style='destructive'/'secondary' qo'shdi,
+  lekin hozir BotFather'da yoqilishi kerak.
+  Attendee: https://core.telegram.org/bots/api#february-9-2026
 """
 
 from aiogram.types import (
@@ -12,6 +16,29 @@ from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton,
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
+
+
+# ═══════════════════════════════════════════════════════════════
+#  YORDAMCHI
+# ═══════════════════════════════════════════════════════════════
+
+def _btn(
+    text: str,
+    *,
+    callback_data: str | None = None,
+    url: str | None = None,
+    switch_inline_query: str | None = None,
+) -> InlineKeyboardButton:
+    """Oddiy InlineKeyboardButton — style yo'q (crash qiladi)."""
+    kwargs: dict = {"text": text}
+    if callback_data is not None:
+        kwargs["callback_data"] = callback_data
+    if url is not None:
+        kwargs["url"] = url
+    if switch_inline_query is not None:
+        kwargs["switch_inline_query"] = switch_inline_query
+    return InlineKeyboardButton(**kwargs)
+
 
 # ═══════════════════════════════════════════════════════════════
 #  REPLY KEYBOARD — Pastki doimiy menyu
@@ -38,15 +65,15 @@ def main_reply_keyboard() -> ReplyKeyboardMarkup:
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="🛍  Xizmatlar",      callback_data="services"),
-        InlineKeyboardButton(text="💰  Balans",          callback_data="balance"),
+        _btn("🛍  Xizmatlar",      callback_data="services"),
+        _btn("💰  Balans",          callback_data="balance"),
     )
     builder.row(
-        InlineKeyboardButton(text="📋  Buyurtmalarim",  callback_data="my_orders"),
-        InlineKeyboardButton(text="🆘  Yordam",          callback_data="support"),
+        _btn("📋  Buyurtmalarim",  callback_data="my_orders"),
+        _btn("🆘  Yordam",          callback_data="support"),
     )
     builder.row(
-        InlineKeyboardButton(text="🎁  Referal dasturi", callback_data="referral"),
+        _btn("🎁  Referal dasturi", callback_data="referral"),
     )
     return builder.as_markup()
 
@@ -58,11 +85,11 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
 def balance_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="➕  Balans to'ldirish", callback_data="deposit"),
+        _btn("➕  Balans to'ldirish", callback_data="deposit"),
     )
     builder.row(
-        InlineKeyboardButton(text="📋  Buyurtmalarim",    callback_data="my_orders"),
-        InlineKeyboardButton(text="🏠  Bosh menyu",       callback_data="main_menu"),
+        _btn("📋  Buyurtmalarim", callback_data="my_orders"),
+        _btn("🏠  Bosh menyu",    callback_data="main_menu"),
     )
     return builder.as_markup()
 
@@ -74,7 +101,7 @@ def balance_menu() -> InlineKeyboardMarkup:
 def cancel_deposit_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="❌  Bekor qilish", callback_data="cancel_deposit"),
+        _btn("❌  Bekor qilish", callback_data="cancel_deposit"),
     )
     return builder.as_markup()
 
@@ -82,13 +109,13 @@ def cancel_deposit_keyboard() -> InlineKeyboardMarkup:
 def admin_contact_keyboard(admin_username: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(
-            text="👨‍💼  Admin bilan bog'lanish",
+        _btn(
+            "👨‍💼  Admin bilan bog'lanish",
             url=f"https://t.me/{admin_username.lstrip('@')}",
         )
     )
     builder.row(
-        InlineKeyboardButton(text="🏠  Bosh menyu", callback_data="main_menu"),
+        _btn("🏠  Bosh menyu", callback_data="main_menu"),
     )
     return builder.as_markup()
 
@@ -100,14 +127,8 @@ def admin_contact_keyboard(admin_username: str) -> InlineKeyboardMarkup:
 def admin_deposit_keyboard(deposit_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(
-            text="✅  Tasdiqlash",
-            callback_data=f"adm_confirm_{deposit_id}",
-        ),
-        InlineKeyboardButton(
-            text="❌  Rad etish",
-            callback_data=f"adm_reject_{deposit_id}",
-        ),
+        _btn("✅  Tasdiqlash", callback_data=f"adm_confirm_{deposit_id}"),
+        _btn("❌  Rad etish",  callback_data=f"adm_reject_{deposit_id}"),
     )
     return builder.as_markup()
 
@@ -115,14 +136,8 @@ def admin_deposit_keyboard(deposit_id: int) -> InlineKeyboardMarkup:
 def confirm_action_keyboard(deposit_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(
-            text="✅  Ha, tasdiqlayman",
-            callback_data=f"adm_confirm_yes_{deposit_id}",
-        ),
-        InlineKeyboardButton(
-            text="↩️  Bekor",
-            callback_data=f"adm_back_{deposit_id}",
-        ),
+        _btn("✅  Ha, tasdiqlayman", callback_data=f"adm_confirm_yes_{deposit_id}"),
+        _btn("↩️  Bekor",      callback_data=f"adm_back_{deposit_id}"),
     )
     return builder.as_markup()
 
@@ -130,17 +145,11 @@ def confirm_action_keyboard(deposit_id: int) -> InlineKeyboardMarkup:
 def reject_ask_keyboard(deposit_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(
-            text="✏️  Sabab yozaman",
-            callback_data=f"adm_reject_write_{deposit_id}",
-        ),
-        InlineKeyboardButton(
-            text="⚡  Shunchaki rad",
-            callback_data=f"adm_reject_yes_{deposit_id}_",
-        ),
+        _btn("✏️  Sabab yozaman", callback_data=f"adm_reject_write_{deposit_id}"),
+        _btn("⚡  Shunchaki rad",       callback_data=f"adm_reject_yes_{deposit_id}_"),
     )
     builder.row(
-        InlineKeyboardButton(text="↩️  Orqaga", callback_data=f"adm_back_{deposit_id}"),
+        _btn("↩️  Orqaga", callback_data=f"adm_back_{deposit_id}"),
     )
     return builder.as_markup()
 
@@ -149,7 +158,6 @@ def reject_ask_keyboard(deposit_id: int) -> InlineKeyboardMarkup:
 #  XIZMATLAR — Platform, Bo'lim, Xizmat
 # ═══════════════════════════════════════════════════════════════
 
-# Coming soon platformalar — tugma ko'rinadi lekin "Tez orada" deydi
 COMING_SOON_PLATFORMS: set[str] = {"🎮 O'yinlar"}
 
 
@@ -162,15 +170,15 @@ def platforms_keyboard(platform_names: list[str]) -> InlineKeyboardMarkup:
     for i in range(0, len(active), 2):
         chunk = active[i:i + 2]
         builder.row(*[
-            InlineKeyboardButton(text=n, callback_data=f"plat_{n}")
+            _btn(n, callback_data=f"plat_{n}")
             for n in chunk
         ])
     for n in soon:
         builder.row(
-            InlineKeyboardButton(text=f"{n}  🔜", callback_data="coming_soon"),
+            _btn(f"{n}  🔜", callback_data="coming_soon"),
         )
     builder.row(
-        InlineKeyboardButton(text="🏠  Bosh menyu", callback_data="main_menu"),
+        _btn("🏠  Bosh menyu", callback_data="main_menu"),
     )
     return builder.as_markup()
 
@@ -181,15 +189,15 @@ def sections_keyboard(platform: str, section_names: list[str]) -> InlineKeyboard
     for i in range(0, len(section_names), 2):
         chunk = section_names[i:i + 2]
         builder.row(*[
-            InlineKeyboardButton(
-                text=s,
+            _btn(
+                s,
                 callback_data=f"sec_{platform}|||{s}",
             )
             for s in chunk
         ])
     builder.row(
-        InlineKeyboardButton(text="↩️  Platformalar", callback_data="services"),
-        InlineKeyboardButton(text="🏠  Bosh menyu",   callback_data="main_menu"),
+        _btn("↩️  Platformalar", callback_data="services"),
+        _btn("🏠  Bosh menyu",     callback_data="main_menu"),
     )
     return builder.as_markup()
 
@@ -205,21 +213,27 @@ def services_list_keyboard(
     builder = InlineKeyboardBuilder()
     for s in services:
         markup = get_markup_fn(s)
-        p1000  = price_per_1000_fn(s["rate"], markup)
         refill = " ♻️" if s.get("refill") else ""
         name   = s["name"][:32]
+        # Package (akkaunt) xizmatlar uchun alohida narx ko'rinishi
+        if s.get("type") == "Package" or (s.get("min") == 1 and s.get("max") <= 10 and float(s.get("rate", 0)) > 0.5):
+            price_uzs = round(float(s["rate"]) * 12500 * (1 + markup / 100))
+            price_str = f"{price_uzs:,} so'm / 1 ta"
+        else:
+            p1000  = price_per_1000_fn(s["rate"], markup)
+            price_str = f"{p1000:,} so'm / 1 000"
         builder.row(
-            InlineKeyboardButton(
-                text=f"{name}{refill}  —  {p1000:,} so'm",
+            _btn(
+                f"{name}{refill}  —  {price_str}",
                 callback_data=f"svc_{s['service']}",
             )
         )
     builder.row(
-        InlineKeyboardButton(
-            text=f"↩️  {section[:20]}",
+        _btn(
+            f"↩️  {section[:20]}",
             callback_data=f"plat_{platform}",
         ),
-        InlineKeyboardButton(text="🏠  Bosh menyu", callback_data="main_menu"),
+        _btn("🏠  Bosh menyu", callback_data="main_menu"),
     )
     return builder.as_markup()
 
@@ -227,11 +241,8 @@ def services_list_keyboard(
 def order_confirm_keyboard(service_id: int, quantity: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(
-            text="✅  Tasdiqlash",
-            callback_data=f"confirm_order_{service_id}_{quantity}",
-        ),
-        InlineKeyboardButton(text="❌  Bekor", callback_data="services"),
+        _btn("✅  Tasdiqlash", callback_data=f"confirm_order_{service_id}_{quantity}"),
+        _btn("❌  Bekor",      callback_data="services"),
     )
     return builder.as_markup()
 
@@ -241,17 +252,13 @@ def order_error_keyboard(
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(
-            text="🔄  Qayta urinish",
-            callback_data=f"retry_order_{service_id}_{quantity}",
-        ),
+        _btn("🔄  Qayta urinish",
+             callback_data=f"retry_order_{service_id}_{quantity}"),
     )
     builder.row(
-        InlineKeyboardButton(
-            text="👨‍💼  Admin",
-            url=f"https://t.me/{admin_username.lstrip('@')}",
-        ),
-        InlineKeyboardButton(text="🏠  Menyu", callback_data="main_menu"),
+        _btn("👨‍💼  Admin",
+             url=f"https://t.me/{admin_username.lstrip('@')}"),
+        _btn("🏠  Menyu", callback_data="main_menu"),
     )
     return builder.as_markup()
 
@@ -263,7 +270,7 @@ def order_error_keyboard(
 def back_to_main() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="🏠  Bosh menyu", callback_data="main_menu"),
+        _btn("🏠  Bosh menyu", callback_data="main_menu"),
     )
     return builder.as_markup()
 
@@ -271,8 +278,8 @@ def back_to_main() -> InlineKeyboardMarkup:
 def back_and_home(back_data: str, back_label: str = "↩️  Orqaga") -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text=back_label,       callback_data=back_data),
-        InlineKeyboardButton(text="🏠  Bosh menyu", callback_data="main_menu"),
+        _btn(back_label,        callback_data=back_data),
+        _btn("🏠  Bosh menyu", callback_data="main_menu"),
     )
     return builder.as_markup()
 
@@ -290,14 +297,11 @@ def referral_keyboard(user_id: int, bot_username: str) -> InlineKeyboardMarkup:
     )
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(
-            text="📤  Havolani ulashish",
-            switch_inline_query=share_text,
-        )
+        _btn("📤  Havolani ulashish", switch_inline_query=share_text)
     )
     builder.row(
-        InlineKeyboardButton(text="📋  Referal tarixi", callback_data="referral_history_0"),
-        InlineKeyboardButton(text="🏠  Bosh menyu",     callback_data="main_menu"),
+        _btn("📋  Referal tarixi", callback_data="referral_history_0"),
+        _btn("🏠  Bosh menyu",     callback_data="main_menu"),
     )
     return builder.as_markup()
 
@@ -308,18 +312,14 @@ def referral_history_keyboard(
     builder = InlineKeyboardBuilder()
     nav = []
     if has_prev:
-        nav.append(
-            InlineKeyboardButton(text="⬅️", callback_data=f"referral_history_{page - 1}")
-        )
+        nav.append(_btn("⬅️", callback_data=f"referral_history_{page - 1}"))
     if has_next:
-        nav.append(
-            InlineKeyboardButton(text="➡️", callback_data=f"referral_history_{page + 1}")
-        )
+        nav.append(_btn("➡️", callback_data=f"referral_history_{page + 1}"))
     if nav:
         builder.row(*nav)
     builder.row(
-        InlineKeyboardButton(text="↩️  Referal",   callback_data="referral"),
-        InlineKeyboardButton(text="🏠  Bosh menyu", callback_data="main_menu"),
+        _btn("↩️  Referal",    callback_data="referral"),
+        _btn("🏠  Bosh menyu",  callback_data="main_menu"),
     )
     return builder.as_markup()
 
@@ -331,13 +331,13 @@ def referral_history_keyboard(
 def support_keyboard(admin_username: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(
-            text="💬  Admin bilan bog'lanish",
+        _btn(
+            "💬  Admin bilan bog'lanish",
             url=f"https://t.me/{admin_username.lstrip('@')}",
         )
     )
     builder.row(
-        InlineKeyboardButton(text="🏠  Bosh menyu", callback_data="main_menu"),
+        _btn("🏠  Bosh menyu", callback_data="main_menu"),
     )
     return builder.as_markup()
 
@@ -349,19 +349,19 @@ def support_keyboard(admin_username: str) -> InlineKeyboardMarkup:
 def admin_panel_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="📊  Statistika",       callback_data="adm_stats"),
-        InlineKeyboardButton(text="👥  Foydalanuvchilar", callback_data="adm_users"),
+        _btn("📊  Statistika",       callback_data="adm_stats"),
+        _btn("👥  Foydalanuvchilar", callback_data="adm_users"),
     )
     builder.row(
-        InlineKeyboardButton(text="📦  Buyurtmalar", callback_data="adm_orders_0_all"),
-        InlineKeyboardButton(text="💰  Depozitlar",  callback_data="adm_deposits"),
+        _btn("📦  Buyurtmalar", callback_data="adm_orders_0_all"),
+        _btn("💰  Depozitlar",  callback_data="adm_deposits"),
     )
     builder.row(
-        InlineKeyboardButton(text="⏳  Kutayotgan cheklar", callback_data="adm_pending"),
-        InlineKeyboardButton(text="🏆  Top 10",             callback_data="adm_top"),
+        _btn("⏳  Kutayotgan cheklar", callback_data="adm_pending"),
+        _btn("🏆  Top 10",         callback_data="adm_top"),
     )
     builder.row(
-        InlineKeyboardButton(text="📢  Broadcast", callback_data="adm_broadcast"),
+        _btn("📢  Broadcast", callback_data="adm_broadcast"),
     )
     return builder.as_markup()
 
@@ -371,16 +371,16 @@ def orders_filter_keyboard(current: str, page: int) -> InlineKeyboardBuilder:
     builder = InlineKeyboardBuilder()
     filters = [
         ("📋 Hammasi",    "all"),
-        ("⏳ Kutish",     "Pending"),
-        ("🔄 Jarayon",   "In progress"),
-        ("✅ Bajarildi",  "Completed"),
-        ("❌ Bekor",      "Canceled"),
+        ("⏳ Kutish",         "Pending"),
+        ("🔄 Jarayon",    "In progress"),
+        ("✅ Bajarildi",      "Completed"),
+        ("❌ Bekor",          "Canceled"),
     ]
     r1, r2 = [], []
     for i, (label, key) in enumerate(filters):
         prefix = "▸ " if key == current else ""
-        btn = InlineKeyboardButton(
-            text=f"{prefix}{label}",
+        btn = _btn(
+            f"{prefix}{label}",
             callback_data=f"adm_orders_0_{key}",
         )
         (r1 if i < 3 else r2).append(btn)

@@ -309,5 +309,57 @@ def validate_link(link: str, validate_type: str) -> bool:
         import re
         return bool(re.match(r"^\d+(\#\d+)?$", link))
 
+    if validate_type == "email":
+        import re
+        return bool(re.match(r"^[\w.+\-]+@[\w\-]+\.[\w.\-]+$", link))
+
     # default: "url"
     return link.startswith("http://") or link.startswith("https://")
+
+# ── Qo'shimcha Instagram bo'limlari ───────────────────────────────────────
+LINK_CONFIG["📸 Instagram|||🔄 Ulashishlar"] = {
+    "prompt": "📨 Post linkini yuboring:",
+    "hint": "Instagram post linki",
+    "example": "https://www.instagram.com/p/ABC123xyz/",
+    "validate": "url",
+}
+LINK_CONFIG["📸 Instagram|||👍 Izohga layk"] = {
+    "prompt": "📨 Izoh linkini yuboring (post link ham bo'ladi):",
+    "hint": "Instagram post linki",
+    "example": "https://www.instagram.com/p/ABC123xyz/",
+    "validate": "url",
+}
+LINK_CONFIG["📸 Instagram|||🆕 Tayyor akkaunt"] = {
+    "prompt": "📧 Akkaunt yuborilishi kerak bo'lgan email manzilingizni yozing:",
+    "hint": "Email manzil",
+    "example": "sizning@email.com",
+    "validate": "email",
+}
+
+# YouTube bo'limlari nomlarini to'g'rilash
+LINK_CONFIG["▶️ YouTube|||❤️ Layklar"] = LINK_CONFIG.get("▶️ YouTube|||👍 Layklar", {
+    "prompt": "📨 Video linkini yuboring:",
+    "hint": "YouTube video linki",
+    "example": "https://www.youtube.com/watch?v=XXXXXXXXXXX",
+    "validate": "url",
+})
+LINK_CONFIG["▶️ YouTube|||👤 Obunachilar"] = LINK_CONFIG.get("▶️ YouTube|||🔔 Obunachi.", {
+    "prompt": "📨 Kanal linkini yuboring:",
+    "hint": "YouTube kanal linki",
+    "example": "https://www.youtube.com/@kanalingiz",
+    "validate": "url",
+})
+LINK_CONFIG["▶️ YouTube|||💬 Izohlar"] = {
+    "prompt": "📨 Video linkini yuboring:",
+    "hint": "YouTube video linki",
+    "example": "https://www.youtube.com/watch?v=XXXXXXXXXXX",
+    "validate": "url",
+}
+
+# Telegram premium a'zolar nomini to'g'rilash
+LINK_CONFIG["✈️ Telegram|||💎 Premium a'zolar"] = {
+    "prompt": "📨 Kanal yoki guruh linkini yuboring:",
+    "hint": "Kanal linki yoki username",
+    "example": "https://t.me/kanalingiz  yoki  @kanalingiz",
+    "validate": "telegram_channel",
+}
