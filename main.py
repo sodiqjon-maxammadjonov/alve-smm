@@ -132,7 +132,7 @@ async def send_backup(bot: Bot, requester_id: int | None = None):
                 caption=(
                     f"🗄 <b>Zendor SMM — Backup</b>\n"
                     f"📅 {now}\n"
-                    f"{'👤 Admin tomonidan so'raldi' if requester_id else '⏰ Avtomatik (kunlik)'}"
+                    f"{'👤 Admin tomonidan so\"raldi' if requester_id else '⏰ Avtomatik (kunlik)'}"
                 ),
                 parse_mode="HTML",
             )
