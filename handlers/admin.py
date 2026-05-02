@@ -633,6 +633,60 @@ async def cmd_top(message: Message):
     await message.answer(_top_text(users), parse_mode="HTML", reply_markup=back_to_main())
 
 
+@router.message(Command("backup"))
+async def cmd_backup(message: Message, bot: Bot):
+    if not is_admin(message.from_user.id):
+        return
+    await message.answer("⏳ Backup tayyorlanmoqda...")
+    from main import send_backup
+    ok = await send_backup(bot, requester_id=message.from_user.id)
+    if ok:
+        await message.answer("✅ Backup muvaffaqiyatli yuborildi!")
+    else:
+        await message.answer("❌ Backup yuborishda xato. GROUP_ID to'g'riligini tekshiring.")
+
+
+@router.message(Command("set_balance_mute"))
+async def cmd_set_balance_mute(message: Message):
+    """Foydalanuvchiga xabar yubormasdan balansini o'rnatish."""
+    if not is_admin(message.from_user.id):
+        return
+    parts = message.text.split()
+    if len(parts) < 3:
+        await message.answer(
+            "❌ <b>Foydalanish:</b> <code>/set_balance_mute 123456789 100000</code>\n\n"
+            "Foydalanuvchiga <b>xabar yuborilmaydi</b>.",
+            parse_mode="HTML",
+        )
+        return
+    try:
+        uid, new_bal = int(parts[1]), int(parts[2])
+    except ValueError:
+        await message.answer("❌ Raqam bo'lishi kerak!")
+        return
+    if new_bal < 0:
+        await message.answer("❌ Balans manfiy bo'lishi mumkin emas!")
+        return
+
+    from database import set_balance, get_user
+    user = await get_user(uid)
+    if not user:
+        await message.answer("❌ Foydalanuvchi topilmadi!")
+        return
+    old_bal = await set_balance(uid, new_bal)
+    diff    = new_bal - old_bal
+
+    await message.answer(
+        f"🔇 <b>{user['full_name']}</b> balansi yangilandi <i>(xabarsiz)</i>\n\n"
+        f"{DIVIDER}\n"
+        f"Oldingi:   <b>{old_bal:,} so'm</b>\n"
+        f"O'zgarish: <b>{'+'if diff>=0 else ''}{diff:,} so'm</b>\n"
+        f"Yangi:     <b>{new_bal:,} so'm</b>\n"
+        f"{DIVIDER}",
+        parse_mode="HTML",
+    )
+
+
 @router.message(Command("smm_balance"))
 async def cmd_smm_balance(message: Message):
     if not is_admin(message.from_user.id):
